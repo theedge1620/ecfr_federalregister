@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eCFR Citation Reviewer</title>
+    <title>eCFR Citation Retriever</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -17,8 +17,11 @@
         </svg>
     </div>
     <div class="header-text">
-        <div class="header-title">eCFR <span>CITATION</span> REVIEWER</div>
-        <div class="header-subtitle">Federal Register Mapping Tool · eCFR API · v2.0</div>
+        <div class="header-title">eCFR <span>CITATION</span> RETRIEVER</div>
+        <div class="header-subtitle">Federal Register Mapping Tool · eCFR API · v2.1</div>
+    </div>
+    <div class="api-status" id="apiStatus">
+        <span class="api-dot" id="apiDot"></span><span id="apiStatusText">Initializing…</span>
     </div>
 </header>
 
@@ -27,72 +30,158 @@
     <!-- ── Sidebar ── -->
     <aside class="sidebar">
 
-        <!-- Mode Toggle -->
         <div class="mode-toggle">
             <button class="active" id="modeSection" onclick="setMode('section')">Section</button>
-            <button id="modePart" onclick="setMode('part')">Part</button>
-            <button id="modeDiff" onclick="setMode('diff')">Diff</button>
+            <button id="modePart"                   onclick="setMode('part')">Part</button>
+            <button id="modeDiff"                   onclick="setMode('diff')">Diff</button>
         </div>
 
-        <!-- Section Fields -->
+        <!-- ══ SECTION MODE ══ -->
         <div id="sectionFields">
             <div class="panel-label">Section Lookup</div>
+
             <div class="form-group">
-                <label for="date">Date (YYYY-MM-DD)</label>
-                <input type="text" id="date" value="2025-06-03" placeholder="2025-06-03">
+                <label>CFR Title</label>
+                <div class="select-wrap">
+                    <select id="s-title" onchange="onTitleChange('section')" disabled>
+                        <option>Loading titles…</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-s-title" style="display:none"></div>
+                </div>
             </div>
+
             <div class="form-group">
-                <label for="title">CFR Title</label>
-                <input type="number" id="title" value="10" min="1" max="50">
+                <label>Date <span class="live-badge">live</span></label>
+                <div class="select-wrap">
+                    <select id="s-date" disabled>
+                        <option>— select title first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-s-date" style="display:none"></div>
+                </div>
+                <div class="latest-tag" id="s-latest-tag"></div>
             </div>
+
             <div class="form-group">
-                <label for="section">Section</label>
-                <input type="text" id="section" value="50.72" placeholder="e.g. 50.72">
+                <label>Part</label>
+                <div class="select-wrap">
+                    <select id="s-part" onchange="onPartChange('section')" disabled>
+                        <option>— select date first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-s-part" style="display:none"></div>
+                </div>
             </div>
-            <button class="btn" id="fetchBtn" onclick="runQuery()">Fetch eCFR Data</button>
+
+            <div class="form-group">
+                <label>Section</label>
+                <div class="select-wrap">
+                    <select id="s-section" disabled>
+                        <option>— select part first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-s-section" style="display:none"></div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="runQuery()">Fetch eCFR Data</button>
             <div class="field-hint">
-                Most recent dates by title are available on <a href="https://www.ecfr.gov" target="_blank">ecfr.gov</a>
+                All options load live from the <a href="https://www.ecfr.gov" target="_blank">eCFR API</a>.
+                Latest date is selected by default.
             </div>
         </div>
 
-        <!-- Part Fields -->
+        <!-- ══ PART MODE ══ -->
         <div id="partFields" style="display:none">
             <div class="panel-label">Part Browser</div>
+
             <div class="form-group">
-                <label for="dateP">Date (YYYY-MM-DD)</label>
-                <input type="text" id="dateP" value="2025-06-03" placeholder="2025-06-03">
+                <label>CFR Title</label>
+                <div class="select-wrap">
+                    <select id="p-title" onchange="onTitleChange('part')" disabled>
+                        <option>Loading titles…</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-p-title" style="display:none"></div>
+                </div>
             </div>
+
             <div class="form-group">
-                <label for="titleP">CFR Title</label>
-                <input type="number" id="titleP" value="10" min="1" max="50">
+                <label>Date <span class="live-badge">live</span></label>
+                <div class="select-wrap">
+                    <select id="p-date" disabled>
+                        <option>— select title first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-p-date" style="display:none"></div>
+                </div>
+                <div class="latest-tag" id="p-latest-tag"></div>
             </div>
+
             <div class="form-group">
-                <label for="part">Part Number</label>
-                <input type="text" id="part" value="50" placeholder="e.g. 50">
+                <label>Part</label>
+                <div class="select-wrap">
+                    <select id="p-part" disabled>
+                        <option>— select date first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-p-part" style="display:none"></div>
+                </div>
             </div>
+
             <button class="btn" onclick="runPartBrowse()">Browse Part Structure</button>
-            <div class="field-hint">Click any section in results to load it directly.</div>
+            <div class="field-hint">Click any section in results to load it in Section mode.</div>
         </div>
 
-        <!-- Diff Fields -->
+        <!-- ══ DIFF MODE ══ -->
         <div id="diffFields" style="display:none">
             <div class="panel-label">Date Comparison</div>
+
             <div class="form-group">
-                <label for="dateA">Date A (earlier)</label>
-                <input type="text" id="dateA" value="2024-01-01" placeholder="2024-01-01">
+                <label>CFR Title</label>
+                <div class="select-wrap">
+                    <select id="d-title" onchange="onTitleChange('diff')" disabled>
+                        <option>Loading titles…</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-d-title" style="display:none"></div>
+                </div>
             </div>
+
             <div class="form-group">
-                <label for="dateB">Date B (later)</label>
-                <input type="text" id="dateB" value="2025-06-03" placeholder="2025-06-03">
+                <label>Part</label>
+                <div class="select-wrap">
+                    <select id="d-part" onchange="onPartChange('diff')" disabled>
+                        <option>— select title first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-d-part" style="display:none"></div>
+                </div>
             </div>
+
             <div class="form-group">
-                <label for="titleD">CFR Title</label>
-                <input type="number" id="titleD" value="10" min="1" max="50">
+                <label>Section</label>
+                <div class="select-wrap">
+                    <select id="d-section" disabled>
+                        <option>— select part first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-d-section" style="display:none"></div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="sectionD">Section</label>
-                <input type="text" id="sectionD" value="50.72" placeholder="e.g. 50.72">
+
+            <div class="diff-dates-row">
+                <div class="form-group">
+                    <label>Date A <span class="date-badge date-a">earlier</span></label>
+                    <div class="select-wrap">
+                        <select id="d-dateA" disabled>
+                            <option>— select title first —</option>
+                        </select>
+                        <div class="sel-spinner" id="spin-d-dateA" style="display:none"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Date B <span class="date-badge date-b">later</span></label>
+                    <div class="select-wrap">
+                        <select id="d-dateB" disabled>
+                            <option>— select title first —</option>
+                        </select>
+                        <div class="sel-spinner" id="spin-d-dateB" style="display:none"></div>
+                    </div>
+                </div>
             </div>
+
             <button class="btn" onclick="runDiff()">Compare Versions</button>
         </div>
 
@@ -114,22 +203,21 @@
         <div class="loading-bar" id="loadingBar"></div>
         <div class="error-banner" id="errorBanner"></div>
         <div id="results">
-            <div class="results-placeholder" id="placeholder">
+            <div class="results-placeholder">
                 <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
                 </svg>
-                <p>Select a mode in the sidebar, enter your parameters,<br>and fetch eCFR data and Federal Register citations.</p>
+                <p>Dropdowns are loading live from the eCFR API.<br>Select your parameters and fetch data.</p>
                 <div class="placeholder-tips">
-                    <div class="tip"><span class="tip-mode">Section</span> Retrieve text &amp; citations for a specific section</div>
+                    <div class="tip"><span class="tip-mode">Section</span> Retrieve text &amp; FR citations for a specific section</div>
                     <div class="tip"><span class="tip-mode">Part</span> Browse all sections within a CFR part</div>
-                    <div class="tip"><span class="tip-mode">Diff</span> Compare a section across two dates</div>
+                    <div class="tip"><span class="tip-mode">Diff</span> Compare a section across two dates side-by-side</div>
                 </div>
             </div>
         </div>
     </main>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast">Copied to clipboard</div>
 
 <script src="script.js"></script>
