@@ -3,87 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eCFR Data</title>
-    <link rel="stylesheet" href="style.css" />
-    
+    <title>eCFR Citation Retriever</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="header">
-    <!--Content before waves-->
-    <div class="inner-header flex">
-        <!--Just the logo.. Don't mind this-->
-        <img
-            src="static/img/logo.png"
-            class="logo"
-            alt="Welcome to Shell"
-            width="50"
-        />
 
-        <h1>
-             eCFR Citation Retriever <br />
-            
-        </h1>
-    </div>
-
-    <!--Waves Container-->
-    <div>
-        <svg
-            class="waves"
-            xmlns="http://www.w3.org/2000/svg"
-            xmlns:xlink="http://www.w3.org/1999/xlink"
-            viewBox="0 24 150 28"
-            preserveAspectRatio="none"
-            shape-rendering="auto"
-        >
-            <defs>
-                <path
-                    id="gentle-wave"
-                    d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z"
-                />
-            </defs>
-            <g class="parallax">
-                <use xlink:href="#gentle-wave" x="48" y="0" fill="rgba(255,255,255,0.7" />
-                <use xlink:href="#gentle-wave" x="48" y="3" fill="rgba(255,255,255,0.5)" />
-                <use xlink:href="#gentle-wave" x="48" y="5" fill="rgba(255,255,255,0.3)" />
-                <use xlink:href="#gentle-wave" x="48" y="7" fill="#fff" />
-            </g>
+<header class="app-header">
+    <div class="header-logo">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
         </svg>
     </div>
-    <!--Waves end-->
+    <div class="header-text">
+        <div class="header-title">eCFR <span>CITATION</span> RETRIEVER</div>
+        <div class="header-subtitle">Federal Register Mapping Tool · eCFR API · v2.0</div>
     </div>
-    
-    
-    <div id="content flex">
-        <h3>Enter the fields below and click Fetch eCFR Data to display:</h3>
-        
-            <li>List of Citations for Section</li>
-            <li>Links to Citations at <a href="https://www.federalregister.gov" target = "_blank">the Federal Register</a></li>
-            <li>Section Title</li>
-            <li>Section Text</li>
-        <h4>Note:  Most Recent Dates by Title are available from eCFR <a hrefa href="https://www.ecfr.gov" target = "_blank">here</a>.  </h4>
-        
-        <form id="ecfrForm">
-            <label for="date">eCFR as of Date (YYYY-MM-DD):</label>
-            <input type="text" id="date" name="date" value = "2025-06-03" required>
-            <br>
-            <label for="title">Title:</label>
-            <input type="number" id="title" name="title" value = "10" required>
-            <br>
-            <label for="section">Section:</label>
-            <input type="text" id="section" name="section" value = "50.72" required>
-            <br>
-            <button type="submit">Fetch eCFR Data</button>
-        </form>
+</header>
 
-        <div id = "eCFRdiv"></div>
+<div class="app-body">
 
-        <script src="script.js"></script>
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
 
-    </div>
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+            <button class="active" id="modeSection" onclick="setMode('section')">Section</button>
+            <button id="modePart" onclick="setMode('part')">Part</button>
+            <button id="modeDiff" onclick="setMode('diff')">Diff</button>
+        </div>
 
-    
+        <!-- Section Fields -->
+        <div id="sectionFields">
+            <div class="panel-label">Section Lookup</div>
+            <div class="form-group">
+                <label for="date">Date (YYYY-MM-DD)</label>
+                <input type="text" id="date" value="2025-06-03" placeholder="2025-06-03">
+            </div>
+            <div class="form-group">
+                <label for="title">CFR Title</label>
+                <input type="number" id="title" value="10" min="1" max="50">
+            </div>
+            <div class="form-group">
+                <label for="section">Section</label>
+                <input type="text" id="section" value="50.72" placeholder="e.g. 50.72">
+            </div>
+            <button class="btn" id="fetchBtn" onclick="runQuery()">Fetch eCFR Data</button>
+            <div class="field-hint">
+                Most recent dates by title are available on <a href="https://www.ecfr.gov" target="_blank">ecfr.gov</a>
+            </div>
+        </div>
+
+        <!-- Part Fields -->
+        <div id="partFields" style="display:none">
+            <div class="panel-label">Part Browser</div>
+            <div class="form-group">
+                <label for="dateP">Date (YYYY-MM-DD)</label>
+                <input type="text" id="dateP" value="2025-06-03" placeholder="2025-06-03">
+            </div>
+            <div class="form-group">
+                <label for="titleP">CFR Title</label>
+                <input type="number" id="titleP" value="10" min="1" max="50">
+            </div>
+            <div class="form-group">
+                <label for="part">Part Number</label>
+                <input type="text" id="part" value="50" placeholder="e.g. 50">
+            </div>
+            <button class="btn" onclick="runPartBrowse()">Browse Part Structure</button>
+            <div class="field-hint">Click any section in results to load it directly.</div>
+        </div>
+
+        <!-- Diff Fields -->
+        <div id="diffFields" style="display:none">
+            <div class="panel-label">Date Comparison</div>
+            <div class="form-group">
+                <label for="dateA">Date A (earlier)</label>
+                <input type="text" id="dateA" value="2024-01-01" placeholder="2024-01-01">
+            </div>
+            <div class="form-group">
+                <label for="dateB">Date B (later)</label>
+                <input type="text" id="dateB" value="2025-06-03" placeholder="2025-06-03">
+            </div>
+            <div class="form-group">
+                <label for="titleD">CFR Title</label>
+                <input type="number" id="titleD" value="10" min="1" max="50">
+            </div>
+            <div class="form-group">
+                <label for="sectionD">Section</label>
+                <input type="text" id="sectionD" value="50.72" placeholder="e.g. 50.72">
+            </div>
+            <button class="btn" onclick="runDiff()">Compare Versions</button>
+        </div>
+
+        <!-- Search History -->
+        <div class="history-panel">
+            <div class="panel-label" style="display:flex;justify-content:space-between;align-items:center">
+                <span>Search History</span>
+                <button class="clear-history-btn" onclick="clearHistory()">Clear</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="history-empty">No searches yet</div>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- ── Main Content ── -->
+    <main class="main-content">
+        <div class="loading-bar" id="loadingBar"></div>
+        <div class="error-banner" id="errorBanner"></div>
+        <div id="results">
+            <div class="results-placeholder" id="placeholder">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
+                </svg>
+                <p>Select a mode in the sidebar, enter your parameters,<br>and fetch eCFR data and Federal Register citations.</p>
+                <div class="placeholder-tips">
+                    <div class="tip"><span class="tip-mode">Section</span> Retrieve text &amp; citations for a specific section</div>
+                    <div class="tip"><span class="tip-mode">Part</span> Browse all sections within a CFR part</div>
+                    <div class="tip"><span class="tip-mode">Diff</span> Compare a section across two dates</div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script src="script.js"></script>
 </body>
 </html>
-
-
-
