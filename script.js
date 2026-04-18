@@ -1,10 +1,12 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  eCFR Citation Retriever — script.js  v2.2
+//  eCFR Citation Retriever — script.js  v2.3 (light)
 //  Cascading live dropdowns: Titles → Dates → Parts → Sections from eCFR API
-//  Default: "Select a Title" placeholder — user must choose to start
+//  Default: Title 10, Part 50, latest date — auto-cascades on load
 // ══════════════════════════════════════════════════════════════════════════
 
-const ECFR_BASE = 'https://www.ecfr.gov/api/versioner/v1';
+const ECFR_BASE     = 'https://www.ecfr.gov/api/versioner/v1';
+const DEFAULT_TITLE = '10';
+const DEFAULT_PART  = '50';
 
 // ── Cache ────────────────────────────────────────────────────────────────
 let titlesData     = [];               // [{number, name, latest_amended_on, …}]
@@ -14,7 +16,7 @@ let structureCache = {};               // { "title-date": structureJSON }
 // ── Mode ─────────────────────────────────────────────────────────────────
 let currentMode = 'section';
 
-function setMode(mode) {
+async function setMode(mode) {
     currentMode = mode;
     document.getElementById('sectionFields').style.display = mode === 'section' ? 'block' : 'none';
     document.getElementById('partFields').style.display    = mode === 'part'    ? 'block' : 'none';
@@ -22,8 +24,12 @@ function setMode(mode) {
     ['Section','Part','Diff'].forEach(m =>
         document.getElementById('mode' + m).classList.toggle('active', m.toLowerCase() === mode)
     );
-    // Populate the newly-shown mode's selects if titles are already loaded
-    if (titlesData.length) populateTitleSelect(mode);
+    // If titles are loaded, populate the title select then cascade dates → parts → sections.
+    // Results are cached after the first fetch so switching modes is fast.
+    if (titlesData.length) {
+        populateTitleSelect(mode);
+        await onTitleChange(mode);
+    }
 }
 
 // ── API Status indicator ─────────────────────────────────────────────────
@@ -100,10 +106,13 @@ async function loadTitles() {
         titlesData = data.titles || [];
         setApiStatus('ok', `${titlesData.length} titles loaded`);
 
-        // Populate all three modes — no auto-cascade; user must pick a title
+        // Populate all three modes, then auto-cascade section mode with defaults
         populateTitleSelect('section');
         populateTitleSelect('part');
         populateTitleSelect('diff');
+
+        // Auto-load Title 10 latest date + Part 50 on startup
+        await onTitleChange('section');
 
     } catch (err) {
         setApiStatus('error', 'API unavailable');
@@ -119,16 +128,11 @@ function populateTitleSelect(mode) {
 
     sel.innerHTML = '';
 
-    // Placeholder — forces deliberate user selection
-    const ph = document.createElement('option');
-    ph.value = ''; ph.textContent = '— Select a Title —';
-    ph.disabled = true; ph.selected = true;
-    sel.appendChild(ph);
-
     titlesData.forEach(t => {
         const o = document.createElement('option');
         o.value = t.number;
         o.textContent = `Title ${t.number} — ${t.name}`;
+        if (String(t.number) === DEFAULT_TITLE) o.selected = true;
         sel.appendChild(o);
     });
     sel.disabled = false;
@@ -138,7 +142,7 @@ function populateTitleSelect(mode) {
 async function onTitleChange(mode) {
     const prefix = { section: 's', part: 'p', diff: 'd' }[mode];
     const titleNum = document.getElementById(`${prefix}-title`)?.value;
-    if (!titleNum) return; // placeholder selected — do nothing
+    if (!titleNum) return;
 
     // Reset downstream selects
     if (mode === 'section') {
@@ -185,7 +189,9 @@ async function onTitleChange(mode) {
 async function fetchVersions(titleNum, spinPrefix) {
     if (versionsCache[titleNum]) return versionsCache[titleNum];
 
-    selSpinner(`${spinPrefix}-date`, true);
+    // Diff mode has dateA/dateB instead of a single date spinner
+    const spinId = spinPrefix === 'd' ? 'd-dateB' : `${spinPrefix}-date`;
+    selSpinner(spinId, true);
     selDisable(`${spinPrefix}-date`, true);
     try {
         const res = await fetch(`${ECFR_BASE}/versions/title-${titleNum}.json`);
@@ -207,7 +213,8 @@ async function fetchVersions(titleNum, spinPrefix) {
         showError(`Could not load dates for Title ${titleNum}: ${err.message}`);
         return [];
     } finally {
-        selSpinner(`${spinPrefix}-date`, false);
+        const spinId = spinPrefix === 'd' ? 'd-dateB' : `${spinPrefix}-date`;
+        selSpinner(spinId, false);
     }
 }
 
@@ -252,10 +259,12 @@ async function loadStructure(titleNum, date, mode) {
         val:   p.identifier,
         label: `Part ${p.identifier}${p.label_description ? ' — ' + truncate(p.label_description, 45) : ''}`
     }));
-    selSet(partSel, partOpts, partOpts[0].val);
+    // Default to Part 50 if available (Title 10 default), otherwise first part
+    const preferredPart = partOpts.find(p => p.val === DEFAULT_PART) ? DEFAULT_PART : partOpts[0].val;
+    selSet(partSel, partOpts, preferredPart);
     selSpinner(`${prefix}-part`, false);
 
-    // Auto-populate sections for the first part
+    // Auto-populate sections for the selected part
     onPartChange(mode);
 }
 
