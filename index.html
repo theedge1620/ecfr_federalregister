@@ -51,21 +51,10 @@
             </div>
 
             <div class="form-group">
-                <label>Date <span class="live-badge">live</span></label>
-                <div class="select-wrap">
-                    <select id="s-date" disabled>
-                        <option>— select title first —</option>
-                    </select>
-                    <div class="sel-spinner" id="spin-s-date" style="display:none"></div>
-                </div>
-                <div class="latest-tag" id="s-latest-tag"></div>
-            </div>
-
-            <div class="form-group">
                 <label>Part</label>
                 <div class="select-wrap">
-                    <select id="s-part" onchange="onPartChange('section')" disabled>
-                        <option>— select date first —</option>
+                    <select id="s-part" disabled>
+                        <option>— select title first —</option>
                     </select>
                     <div class="sel-spinner" id="spin-s-part" style="display:none"></div>
                 </div>
@@ -81,10 +70,21 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label>Date <span class="live-badge">live</span></label>
+                <div class="select-wrap">
+                    <select id="s-date" disabled>
+                        <option>— select part first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-s-date" style="display:none"></div>
+                </div>
+                <div class="latest-tag" id="s-latest-tag"></div>
+            </div>
+
             <button class="btn" onclick="runQuery()">Fetch eCFR Data</button>
             <div class="field-hint">
                 All options load live from the <a href="https://www.ecfr.gov" target="_blank">eCFR API</a>.
-                Latest date is selected by default.
+                Date filters to amendments for the selected section.
             </div>
         </div>
 
@@ -103,24 +103,24 @@
             </div>
 
             <div class="form-group">
+                <label>Part</label>
+                <div class="select-wrap">
+                    <select id="p-part" disabled>
+                        <option>— select title first —</option>
+                    </select>
+                    <div class="sel-spinner" id="spin-p-part" style="display:none"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
                 <label>Date <span class="live-badge">live</span></label>
                 <div class="select-wrap">
                     <select id="p-date" disabled>
-                        <option>— select title first —</option>
+                        <option>— select part first —</option>
                     </select>
                     <div class="sel-spinner" id="spin-p-date" style="display:none"></div>
                 </div>
                 <div class="latest-tag" id="p-latest-tag"></div>
-            </div>
-
-            <div class="form-group">
-                <label>Part</label>
-                <div class="select-wrap">
-                    <select id="p-part" disabled>
-                        <option>— select date first —</option>
-                    </select>
-                    <div class="sel-spinner" id="spin-p-part" style="display:none"></div>
-                </div>
             </div>
 
             <button class="btn" onclick="runPartBrowse()">Browse Part Structure</button>

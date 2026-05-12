@@ -8,9 +8,15 @@ const ECFR_BASE     = 'https://www.ecfr.gov/api/versioner/v1';
 const DEFAULT_TITLE = '10';
 const DEFAULT_PART  = '50';
 
+// Dates (or year prefixes) to exclude from dropdowns for specific titles.
+// Add entries here when the eCFR API returns anomalous/empty snapshots.
+const SUPPRESSED_DATES = {
+    '10': ['2016'],   // Title 10: 2016 snapshots are anomalous in the eCFR API
+};
+
 // ── Cache ────────────────────────────────────────────────────────────────
 let titlesData     = [];               // [{number, name, latest_amended_on, …}]
-let versionsCache  = {};               // { titleNum: [date, date, …] }
+let versionsRaw    = {};               // { titleNum: [{date, part, identifier, …}] }
 let structureCache = {};               // { "title-date": structureJSON }
 
 // ── Mode ─────────────────────────────────────────────────────────────────
@@ -138,7 +144,8 @@ function populateTitleSelect(mode) {
     sel.disabled = false;
 }
 
-// ── 3. Title changed → load versions (dates) + structure ────────────────
+// ── 3. Title changed → fetch versions + load structure silently ──────────
+// Date is now the LAST input (Section/Part modes); onPartChange populates it.
 async function onTitleChange(mode) {
     const prefix = { section: 's', part: 'p', diff: 'd' }[mode];
     const titleNum = document.getElementById(`${prefix}-title`)?.value;
@@ -146,12 +153,12 @@ async function onTitleChange(mode) {
 
     // Reset downstream selects
     if (mode === 'section') {
-        resetSelect('s-date',    '— loading dates… —');
-        resetSelect('s-part',    '— select date first —');
+        resetSelect('s-part',    '— loading parts… —');
         resetSelect('s-section', '— select part first —');
+        resetSelect('s-date',    '— select part first —');
     } else if (mode === 'part') {
-        resetSelect('p-date', '— loading dates… —');
-        resetSelect('p-part', '— select date first —');
+        resetSelect('p-part', '— loading parts… —');
+        resetSelect('p-date', '— select part first —');
     } else if (mode === 'diff') {
         resetSelect('d-dateA',   '— loading dates… —');
         resetSelect('d-dateB',   '— loading dates… —');
@@ -159,40 +166,37 @@ async function onTitleChange(mode) {
         resetSelect('d-section', '— select part first —');
     }
 
-    // Get or fetch versions
-    const dates = await fetchVersions(titleNum, prefix);
-    if (!dates || dates.length === 0) return;
+    // Fetch raw version objects (needed for date filtering in onPartChange/onSectionChange)
+    const versions = await fetchVersions(titleNum, prefix);
+    if (!versions?.length) return;
 
-    const latestDate = dates[0];  // Already sorted newest-first
+    const latestDate = extractDates(versions)[0];
 
     if (mode === 'section') {
-        const opts = dates.map((d, i) => ({ val: d, label: d + (i === 0 ? ' ★ latest' : '') }));
-        selSet('s-date', opts, latestDate);
-        setLatestTag('s-latest-tag', latestDate, true);
+        // Load structure with latest date — onPartChange will populate the date dropdown
         await loadStructure(titleNum, latestDate, 'section');
 
     } else if (mode === 'part') {
-        const opts = dates.map((d, i) => ({ val: d, label: d + (i === 0 ? ' ★ latest' : '') }));
-        selSet('p-date', opts, latestDate);
-        setLatestTag('p-latest-tag', latestDate, true);
+        // Load structure with latest date — onPartChange will populate the date dropdown
         await loadStructure(titleNum, latestDate, 'part');
 
     } else if (mode === 'diff') {
-        const opts = dates.map((d, i) => ({ val: d, label: d + (i === 0 ? ' ★ latest' : '') }));
-        selSet('d-dateA', opts, dates[Math.min(1, dates.length - 1)]); // second-latest as A
-        selSet('d-dateB', opts, latestDate);                            // latest as B
+        // Diff keeps its date dropdowns visible up-front, populated with all-title dates
+        const allDates = extractDates(versions);
+        const opts = allDates.map((d, i) => ({ val: d, label: d + (i === 0 ? ' ★ latest' : '') }));
+        selSet('d-dateA', opts, allDates[Math.min(1, allDates.length - 1)]);
+        selSet('d-dateB', opts, latestDate);
         await loadStructure(titleNum, latestDate, 'diff');
     }
 }
 
-// ── 4. Fetch versions (dates) for a title ───────────────────────────────
+// ── 4. Fetch versions for a title (stores raw objects for date filtering) ──
 async function fetchVersions(titleNum, spinPrefix) {
-    if (versionsCache[titleNum]) return versionsCache[titleNum];
+    if (versionsRaw[titleNum]) return versionsRaw[titleNum];
 
-    // Diff mode has dateA/dateB instead of a single date spinner
-    const spinId = spinPrefix === 'd' ? 'd-dateB' : `${spinPrefix}-date`;
+    // Show loading spinner on the part select (date is last, not shown yet)
+    const spinId = spinPrefix === 'd' ? 'd-dateB' : `${spinPrefix}-part`;
     selSpinner(spinId, true);
-    selDisable(`${spinPrefix}-date`, true);
     try {
         // The API requires issue_date[gte] to avoid a 400 "result set too large" error.
         const gte = `${new Date().getFullYear() - 15}-01-01`;
@@ -200,22 +204,17 @@ async function fetchVersions(titleNum, spinPrefix) {
         if (!res.ok) throw new Error('versions HTTP ' + res.status);
         const data = await res.json();
 
-        // Normalize: content_versions array or flat array, then deduplicate
-        const raw = data.content_versions || data.versions || data || [];
-        const dates = [...new Set(
-            raw
-                .map(v => (typeof v === 'string' ? v : v.date || v.amendment_date || ''))
-                .filter(Boolean)
-                .sort((a, b) => b.localeCompare(a)) // newest first
-        )];
-
-        versionsCache[titleNum] = dates;
-        return dates;
+        const raw       = data.content_versions || data.versions || data || [];
+        const suppressed = SUPPRESSED_DATES[String(titleNum)] || [];
+        versionsRaw[titleNum] = (Array.isArray(raw) ? raw : []).filter(v => {
+            const d = v.date || v.amendment_date || '';
+            return !suppressed.some(s => d.startsWith(s));
+        });
+        return versionsRaw[titleNum];
     } catch (err) {
         showError(`Could not load dates for Title ${titleNum}: ${err.message}`);
         return [];
     } finally {
-        const spinId = spinPrefix === 'd' ? 'd-dateB' : `${spinPrefix}-date`;
         selSpinner(spinId, false);
     }
 }
@@ -270,7 +269,7 @@ async function loadStructure(titleNum, date, mode) {
     onPartChange(mode);
 }
 
-// ── 6. Part changed → populate sections ─────────────────────────────────
+// ── 6. Part changed → populate sections + narrow date dropdown ───────────
 function onPartChange(mode) {
     const prefix = { section: 's', part: 'p', diff: 'd' }[mode];
     const titleSel = document.getElementById(`${prefix}-title`);
@@ -281,14 +280,39 @@ function onPartChange(mode) {
     const partSel    = `${prefix}-part`;
     const sectionSel = mode !== 'part' ? `${prefix}-section` : null;
 
-    if (!sectionSel) return; // Part mode doesn't have a section dropdown
-
     const titleNum = titleSel?.value;
     const date     = dateSel?.value;
     const partNum  = document.getElementById(partSel)?.value;
-    if (!titleNum || !date || !partNum) return;
+    if (!titleNum || !partNum) return;
 
-    const cacheKey = `${titleNum}-${date}`;
+    // ── Narrow date dropdown to dates relevant for this part ──────────────
+    if (versionsRaw[titleNum]?.length) {
+        const prevDate  = dateSel?.value;
+        const partDates = datesForPart(titleNum, partNum);
+        updateDateDropdown(mode, titleNum, partDates);
+        // If date changed because current date wasn't in part's history,
+        // reload structure so sections reflect the now-selected date.
+        const newDate = mode === 'diff'
+            ? document.getElementById('d-dateB')?.value
+            : document.getElementById(`${prefix}-date`)?.value;
+        if (newDate && newDate !== prevDate) {
+            if (structureCache[`${titleNum}-${newDate}`]) {
+                onPartChange(mode); // cached: re-run without resetting dropdowns
+            } else {
+                loadStructure(titleNum, newDate, mode); // not cached: full reload
+            }
+            return;
+        }
+    }
+
+    if (!sectionSel) return; // Part mode: no section dropdown to populate
+
+    const currentDate = mode === 'diff'
+        ? document.getElementById('d-dateB')?.value
+        : document.getElementById(`${prefix}-date`)?.value;
+    if (!currentDate) return;
+
+    const cacheKey = `${titleNum}-${currentDate}`;
     const structure = structureCache[cacheKey];
     if (!structure) return;
 
@@ -351,18 +375,59 @@ function truncate(str, max) {
     return str && str.length > max ? str.slice(0, max) + '…' : str;
 }
 
-// ── Date select change → reload structure if needed ───────────────────────
-// Attach listeners after selects exist
+// ── Version date helpers ──────────────────────────────────────────────────
+function extractDates(versions) {
+    return [...new Set(
+        (versions || [])
+            .map(v => typeof v === 'string' ? v : v.date || v.amendment_date || '')
+            .filter(Boolean)
+            .sort((a, b) => b.localeCompare(a))
+    )];
+}
+
+function datesForPart(titleNum, partNum) {
+    const all      = versionsRaw[titleNum] || [];
+    const filtered = all.filter(v => String(v.part) === String(partNum));
+    return extractDates(filtered.length ? filtered : all);
+}
+
+function datesForSection(titleNum, sectionId, partNum) {
+    const all      = versionsRaw[titleNum] || [];
+    const filtered = all.filter(v => String(v.identifier) === String(sectionId));
+    if (filtered.length) return extractDates(filtered);
+    if (partNum) {
+        const byPart = all.filter(v => String(v.part) === String(partNum));
+        if (byPart.length) return extractDates(byPart);
+    }
+    return extractDates(all);
+}
+
+function updateDateDropdown(mode, titleNum, dates) {
+    if (!dates.length) return;
+    const opts   = dates.map((d, i) => ({ val: d, label: d + (i === 0 ? ' ★ latest' : '') }));
+    const prefix = { section: 's', part: 'p', diff: 'd' }[mode];
+    if (mode !== 'diff') {
+        const cur       = document.getElementById(`${prefix}-date`)?.value;
+        const preferred = dates.includes(cur) ? cur : dates[0];
+        selSet(`${prefix}-date`, opts, preferred);
+        setLatestTag(`${prefix}-latest-tag`, dates[0], preferred === dates[0]);
+    } else {
+        const curA = document.getElementById('d-dateA')?.value;
+        const curB = document.getElementById('d-dateB')?.value;
+        selSet('d-dateA', opts, dates.includes(curA) ? curA : dates[Math.min(1, dates.length - 1)]);
+        selSet('d-dateB', opts, dates.includes(curB) ? curB : dates[0]);
+    }
+}
+
+// ── Event listeners: date, part, and section selects ─────────────────────
 function attachDateListeners() {
+    // Date changed manually by user → reload structure, update latest tag
     document.getElementById('s-date')?.addEventListener('change', async () => {
         const title = document.getElementById('s-title')?.value;
         const date  = document.getElementById('s-date')?.value;
         if (title && date) {
-            const el = document.getElementById('s-latest-tag');
-            if (el) {
-                const latest = versionsCache[title]?.[0];
-                setLatestTag('s-latest-tag', latest, date === latest);
-            }
+            const latest = document.getElementById('s-date')?.options?.[0]?.value;
+            setLatestTag('s-latest-tag', latest, date === latest);
             await loadStructure(title, date, 'section');
         }
     });
@@ -370,8 +435,8 @@ function attachDateListeners() {
         const title = document.getElementById('p-title')?.value;
         const date  = document.getElementById('p-date')?.value;
         if (title && date) {
-            const el = document.getElementById('p-latest-tag');
-            if (el) { const latest = versionsCache[title]?.[0]; setLatestTag('p-latest-tag', latest, date === latest); }
+            const latest = document.getElementById('p-date')?.options?.[0]?.value;
+            setLatestTag('p-latest-tag', latest, date === latest);
             await loadStructure(title, date, 'part');
         }
     });
@@ -379,6 +444,27 @@ function attachDateListeners() {
         const title = document.getElementById('d-title')?.value;
         const date  = document.getElementById('d-dateB')?.value;
         if (title && date) await loadStructure(title, date, 'diff');
+    });
+
+    // Part changed manually by user → repopulate sections + narrow dates
+    document.getElementById('s-part')?.addEventListener('change', () => onPartChange('section'));
+    document.getElementById('p-part')?.addEventListener('change', () => onPartChange('part'));
+    document.getElementById('d-part')?.addEventListener('change', () => onPartChange('diff'));
+
+    // Section changed → narrow date dropdown to dates this section was amended
+    document.getElementById('s-section')?.addEventListener('change', () => {
+        const titleNum  = document.getElementById('s-title')?.value;
+        const partNum   = document.getElementById('s-part')?.value;
+        const sectionId = document.getElementById('s-section')?.value;
+        if (!titleNum || !sectionId || sectionId.startsWith('—')) return;
+        updateDateDropdown('section', titleNum, datesForSection(titleNum, sectionId, partNum));
+    });
+    document.getElementById('d-section')?.addEventListener('change', () => {
+        const titleNum  = document.getElementById('d-title')?.value;
+        const partNum   = document.getElementById('d-part')?.value;
+        const sectionId = document.getElementById('d-section')?.value;
+        if (!titleNum || !sectionId || sectionId.startsWith('—')) return;
+        updateDateDropdown('diff', titleNum, datesForSection(titleNum, sectionId, partNum));
     });
 }
 
