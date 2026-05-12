@@ -194,7 +194,9 @@ async function fetchVersions(titleNum, spinPrefix) {
     selSpinner(spinId, true);
     selDisable(`${spinPrefix}-date`, true);
     try {
-        const res = await fetch(`${ECFR_BASE}/versions/title-${titleNum}.json`);
+        // The API requires issue_date[gte] to avoid a 400 "result set too large" error.
+        const gte = `${new Date().getFullYear() - 15}-01-01`;
+        const res = await fetch(`${ECFR_BASE}/versions/title-${titleNum}.json?issue_date%5Bgte%5D=${gte}`);
         if (!res.ok) throw new Error('versions HTTP ' + res.status);
         const data = await res.json();
 
@@ -434,7 +436,7 @@ function extractTagText(xmlText, tagtext) {
 
 // ── eCFR XML Fetch ────────────────────────────────────────────────────────
 async function fetchECFRXML(date, title, section) {
-    const url = `${ECFR_BASE}/full/${date}/title-${title}.xml?section=${section}`;
+    const url = `${ECFR_BASE}/full/${date}/title-${title}.xml?section=${encodeURIComponent(section)}`;
     const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/xml' } });
     if (!res.ok) throw new Error(`eCFR API HTTP ${res.status} — Title ${title} §${section} on ${date}`);
     return res.text();
