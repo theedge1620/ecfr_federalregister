@@ -440,6 +440,10 @@ select option { background: #ffffff; color: var(--text); }
 }
 .copy-btn:hover  { background: rgba(255,255,255,0.25); }
 .copy-btn.copied { border-color: var(--green-border); color: var(--green-bg); }
+.export-csv-btn  { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.45); color: #6ee7b7; }
+.export-csv-btn:hover  { background: rgba(52,211,153,0.22); }
+.export-word-btn { background: rgba(96,165,250,0.12); border-color: rgba(96,165,250,0.45); color: #93c5fd; }
+.export-word-btn:hover { background: rgba(96,165,250,0.22); }
 
 .result-card-body { padding: 16px; }
 

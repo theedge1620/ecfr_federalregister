@@ -18,6 +18,8 @@ const SUPPRESSED_DATES = {
 let titlesData     = [];               // [{number, name, latest_amended_on, …}]
 let versionsRaw    = {};               // { titleNum: [{date, part, identifier, …}] }
 let structureCache = {};               // { "title-date": structureJSON }
+let _lastSection   = null;            // last rendered section data (for export functions)
+let _lastDiff      = null;            // last rendered diff data (for export functions)
 
 // ── Mode ─────────────────────────────────────────────────────────────────
 let currentMode = 'section';
@@ -440,10 +442,28 @@ function attachDateListeners() {
             await loadStructure(title, date, 'part');
         }
     });
+    document.getElementById('d-dateA')?.addEventListener('change', () => {
+        const dateA = document.getElementById('d-dateA')?.value;
+        const dateB = document.getElementById('d-dateB')?.value;
+        if (dateA && dateB && dateA >= dateB) {
+            // Find the first option in Date B that is later than Date A
+            const bSel = document.getElementById('d-dateB');
+            const later = Array.from(bSel.options).find(o => o.value > dateA);
+            if (later) {
+                bSel.value = later.value;
+                bSel.dispatchEvent(new Event('change'));
+            }
+        }
+    });
     document.getElementById('d-dateB')?.addEventListener('change', async () => {
+        const dateA = document.getElementById('d-dateA')?.value;
+        const dateB = document.getElementById('d-dateB')?.value;
+        if (dateA && dateB && dateB <= dateA) {
+            showError('Date B must be later than Date A.'); return;
+        }
+        showError(null);
         const title = document.getElementById('d-title')?.value;
-        const date  = document.getElementById('d-dateB')?.value;
-        if (title && date) await loadStructure(title, date, 'diff');
+        if (title && dateB) await loadStructure(title, dateB, 'diff');
     });
 
     // Part changed manually by user → repopulate sections + narrow dates
@@ -577,7 +597,98 @@ async function runQueryWith(title, date, section) {
     } finally { showLoading(false); }
 }
 
+// ── Export: Citations → CSV ───────────────────────────────────────────────
+function exportCitationsCSV() {
+    if (!_lastSection) return;
+    const { citations, frResults, title, section, date } = _lastSection;
+    const esc = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Citation','Federal Register URL','PDF URL','Document Title'].map(esc).join(',')];
+    citations.forEach(c => {
+        const fr  = frResults.find(r => r.citation === c) || {};
+        const url = `https://www.federalregister.gov/citation/${c.replaceAll(' ', '-')}`;
+        rows.push([c, url, fr.pdf_url || '', fr.title || ''].map(esc).join(','));
+    });
+    _triggerDownload(
+        new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' }),
+        `citations-Title${title}-sec${section}-${date}.csv`
+    );
+}
+
+// ── Export: Section Text → RTF (opens in Word) ────────────────────────────
+function exportSectionRTF() {
+    if (!_lastSection) return;
+    const { head, pEls, title, section, date } = _lastSection;
+
+    // RTF-escape a plain string (handles \, {, }, non-ASCII)
+    const esc = s => String(s ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/\{/g, '\\{')
+        .replace(/\}/g, '\\}')
+        .replace(/[^\x00-\x7F]/g, ch => `\\u${ch.charCodeAt(0)}?`);
+
+    const meta   = esc(`Title ${title} CFR §${section} — ${date}`);
+    const hdLine = head ? `\\pard\\sa180\\sl280\\slmult1\\b\\fs28 ${esc(head)}\\b0\\par\\par\n` : '';
+    const body   = Array.from(pEls)
+        .map(p => `\\pard\\sa180\\sl280\\slmult1\\fs24 ${esc(p.textContent)}\\par`)
+        .join('\n');
+
+    const rtf = `{\\rtf1\\ansi\\ansicpg1252\\deff0\n` +
+        `{\\fonttbl{\\f0\\froman\\fprq2\\fcharset0 Times New Roman;}}\n` +
+        `\\widowctrl\\hyphauto\n` +
+        `\\pard\\sa180\\sl280\\slmult1\\f0\\fs20\\i ${meta}\\i0\\par\\par\n` +
+        `${hdLine}${body}\n}`;
+
+    _triggerDownload(
+        new Blob([rtf], { type: 'application/rtf' }),
+        `Title${title}-sec${section}-${date}.rtf`
+    );
+}
+
+function exportDiffRTF() {
+    if (!_lastDiff) return;
+    const { ops, headB, dateA, dateB, title, section } = _lastDiff;
+    const escRtf = s => String(s ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/\{/g, '\\{')
+        .replace(/\}/g, '\\}')
+        .replace(/[^\x00-\x7F]/g, ch => `\\u${ch.charCodeAt(0)}?`);
+
+    // Build body: added=green, deleted=red strikethrough, same=normal
+    const body = ops.map(op => {
+        const t = escRtf(op.val);
+        if (op.type === 'same') return t;
+        if (op.type === 'add')  return `{\\cf2 ${t}}`;
+        if (op.type === 'del')  return `{\\cf1\\strike ${t}}`;
+        return '';
+    }).join('');
+
+    const meta   = escRtf(`Title ${title} CFR §${section} — ${dateA} vs ${dateB} (Date B: ${dateB})`);
+    const head   = headB ? `\\pard\\sa180\\sl280\\slmult1\\b\\fs28 ${escRtf(headB)}\\b0\\par\\par\n` : '';
+    const legend = `\\pard\\sa120\\sl240\\slmult1\\fs20\\i {\\cf1 Red strikethrough = removed (${dateA})}  {\\cf2 Green = added (${dateB})}\\i0\\par\\par\n`;
+    const rtf = `{\\rtf1\\ansi\\ansicpg1252\\deff0\n` +
+        `{\\fonttbl{\\f0\\froman\\fprq2\\fcharset0 Times New Roman;}}\n` +
+        `{\\colortbl;\\red180\\green0\\blue0;\\red0\\green130\\blue0;}\n` +
+        `\\widowctrl\\hyphauto\n` +
+        `\\pard\\sa180\\sl280\\slmult1\\f0\\fs20\\i ${meta}\\i0\\par\\par\n` +
+        `${head}${legend}` +
+        `\\pard\\sa180\\sl280\\slmult1\\fs24 ${body}\\par\n}`;
+    _triggerDownload(
+        new Blob([rtf], { type: 'application/rtf' }),
+        `Diff-Title${title}-sec${section}-${dateA}-vs-${dateB}.rtf`
+    );
+}
+
+function _triggerDownload(blob, filename) {
+    const a = document.createElement('a');
+    a.href  = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
 function renderSection({ head, cita, citations, pEls, frResults, date, title, section }) {
+    _lastSection = { head, cita, citations, pEls, frResults, date, title, section };
+
     let html = '';
     if (cita) {
         const frLinks  = citations.map(c => `<a class="fr-link" href="https://www.federalregister.gov/citation/${c.replaceAll(' ','-')}" target="_blank">↗ ${c}</a>`).join('');
@@ -587,7 +698,7 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
                 PDF ${r.citation}
             </a>`).join('');
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Citations</span><button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(cita)},this)">Copy</button></div>
+            <div class="result-card-header"><span class="result-card-title">Citations</span><button class="copy-btn export-csv-btn" onclick="exportCitationsCSV()">Export CSV</button></div>
             <div class="result-card-body">
                 <div class="citation-text">${cita}</div>
                 ${frLinks  ? `<div class="link-row">${frLinks}</div>`  : ''}
@@ -596,13 +707,12 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
     }
     if (head) {
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Section — ${title} CFR §${section}</span><button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(head)},this)">Copy</button></div>
+            <div class="result-card-header"><span class="result-card-title">Section — ${title} CFR §${section}</span></div>
             <div class="result-card-body"><div class="section-heading">${head}</div></div></div>`;
     }
     if (pEls.length > 0) {
-        const allText = Array.from(pEls).map(p => p.textContent).join('\n\n');
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Section Text — ${date}</span><button class="copy-btn" onclick="copyToClipboard(${JSON.stringify(allText)},this)">Copy</button></div>
+            <div class="result-card-header"><span class="result-card-title">Section Text — ${date}</span><button class="copy-btn export-word-btn" onclick="exportSectionRTF()">Export Word</button></div>
             <div class="result-card-body">${Array.from(pEls).map(p => `<div class="section-para">${p.textContent}</div>`).join('')}</div></div>`;
     }
     if (!html) html = '<div class="results-placeholder"><p>No content found. Try a different date or section.</p></div>';
@@ -686,6 +796,9 @@ async function runDiff() {
     if (!title || !section || !dateA || !dateB || section.startsWith('—')) {
         showError('Select a title, section, and both dates.'); return;
     }
+    if (dateA >= dateB) {
+        showError('Date A must be earlier than Date B.'); return;
+    }
     await runDiffWith(title, dateA, dateB, section);
 }
 
@@ -730,6 +843,7 @@ function buildDiffPane(ops,side){
 }
 function renderDiff({textA,textB,headA,headB,citaA,citaB,dateA,dateB,title,section}){
     const ops=wordDiff(textA,textB);
+    _lastDiff = { ops, headB, dateA, dateB, title, section };
     const adds=ops.filter(o=>o.type==='add'&&o.val.trim()).length;
     const dels=ops.filter(o=>o.type==='del'&&o.val.trim()).length;
     const sames=ops.filter(o=>o.type==='same'&&o.val.trim()).length;
@@ -741,7 +855,7 @@ function renderDiff({textA,textB,headA,headB,citaA,citaB,dateA,dateB,title,secti
            <div class="diff-cita-detail"><b>${dateB}:</b> ${citaB||'(none)'}</div>`;
     document.getElementById('results').innerHTML = `
     <div class="result-card">
-        <div class="result-card-header"><span class="result-card-title">Title ${title} §${section} — Version Comparison</span></div>
+        <div class="result-card-header"><span class="result-card-title">Title ${title} §${section} — Version Comparison</span><button class="copy-btn export-word-btn" onclick="exportDiffRTF()">Export Word</button></div>
         <div class="result-card-body">
             <div class="diff-stats">
                 <span class="stat-add">+${adds} added</span>
