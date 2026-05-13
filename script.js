@@ -686,6 +686,52 @@ function _triggerDownload(blob, filename) {
     URL.revokeObjectURL(a.href);
 }
 
+function extractCrossRefs(pEls, currentTitle, currentSection) {
+    const text = Array.from(pEls).map(p => p.textContent).join(' ');
+    const refs = new Map();
+
+    // "10 CFR § 50.1", "10 CFR 2.206" (no §), or "10 CFR part 50"
+    const fullRe = /(\d+)\s+CFR\s+(?:§§?\s*([\d]+\.[\d]+[a-z0-9]*)|parts?\s+(\d+)|([\d]+\.[\d]+[a-z0-9]*))/gi;
+    let m;
+    while ((m = fullRe.exec(text)) !== null) {
+        const refTitle = m[1], sec = m[2] || m[4], part = m[3];
+        if (sec) {
+            const key = `t${refTitle}-s${sec}`;
+            if (!refs.has(key)) refs.set(key, { label: `${refTitle} CFR § ${sec}`, title: refTitle, section: sec, type: 'section' });
+        } else if (part) {
+            const key = `t${refTitle}-p${part}`;
+            if (!refs.has(key)) refs.set(key, { label: `${refTitle} CFR part ${part}`, title: refTitle, part, type: 'part' });
+        }
+    }
+
+    // bare "§ X.Y" not already captured via full ref
+    const secRe = /§§?\s*([\d]+\.[\d]+[a-z0-9]*)/gi;
+    while ((m = secRe.exec(text)) !== null) {
+        const before = text.slice(Math.max(0, m.index - 20), m.index);
+        if (/\d+\s+CFR\s*$/i.test(before)) continue;
+        const sec = m[1];
+        if (sec === currentSection) continue;
+        const key = `t${currentTitle}-s${sec}`;
+        if (!refs.has(key)) refs.set(key, { label: `§ ${sec}`, title: currentTitle, section: sec, type: 'section' });
+    }
+
+    // bare "part X" not already captured via full ref
+    const partRe = /\bparts?\s+(\d+)\b/gi;
+    while ((m = partRe.exec(text)) !== null) {
+        const before = text.slice(Math.max(0, m.index - 20), m.index);
+        if (/\d+\s+CFR\s*$/i.test(before)) continue;
+        const key = `t${currentTitle}-p${m[1]}`;
+        if (!refs.has(key)) refs.set(key, { label: `Part ${m[1]}`, title: currentTitle, part: m[1], type: 'part' });
+    }
+
+    return [...refs.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function loadCrossRef(title, section) {
+    if (!_lastSection) return;
+    runQueryWith(title, _lastSection.date, section);
+}
+
 function renderSection({ head, cita, citations, pEls, frResults, date, title, section }) {
     _lastSection = { head, cita, citations, pEls, frResults, date, title, section };
 
@@ -705,6 +751,23 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
                 ${pdfLinks ? `<div class="link-row" style="margin-top:8px">${pdfLinks}</div>` : ''}
             </div></div>`;
     }
+    // Cross References card (inserted after Citations)
+    if (pEls.length > 0) {
+        const xrefs = extractCrossRefs(pEls, title, section);
+        const chips = xrefs.length
+            ? xrefs.map(r => {
+                if (r.type === 'section') {
+                    return `<span class="xref-chip" onclick="loadCrossRef('${r.title}','${r.section}')" title="Load ${r.label}">${r.label}</span>`;
+                }
+                const href = `https://www.ecfr.gov/current/title-${r.title}/part-${r.part}`;
+                return `<a class="xref-chip xref-part" href="${href}" target="_blank" title="View on eCFR.gov">${r.label} ↗</a>`;
+            }).join('')
+            : '<span class="xref-empty">No cross-references detected in this section.</span>';
+        html += `<div class="result-card">
+            <div class="result-card-header"><span class="result-card-title">Cross References</span></div>
+            <div class="result-card-body"><div class="xref-list">${chips}</div></div></div>`;
+    }
+
     if (head) {
         html += `<div class="result-card">
             <div class="result-card-header"><span class="result-card-title">Section — ${title} CFR §${section}</span></div>
