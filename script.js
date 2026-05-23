@@ -15,6 +15,50 @@ const SUPPRESSED_DATES = {
 };
 
 // ── Cache ────────────────────────────────────────────────────────────────
+// Regex to detect a leading paragraph designator, e.g. (a), (b)(1), (iv)
+const PARA_DESIG_RE = /^\s*(\([a-zA-Z0-9]+\)(?:\([a-zA-Z0-9]+\))*)/;
+
+// ── Paragraph hierarchy path builder ─────────────────────────────────────
+// Classifies each designator as alpha(1) / num(2) / roman(3) / upper(4)
+// and tracks a stack so (1) under (a) becomes (a)(1), etc.
+const _ROMAN_RE = /^m{0,4}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/i;
+function _isRoman(s) { return s.length > 0 && _ROMAN_RE.test(s); }
+function _desigType(inner, stackTypes) {
+    if (/^\d+$/.test(inner))  return 'num';          // (1),(2)… → level 2
+    if (/^[A-Z]+$/.test(inner)) return 'upper';       // (A),(B)… → level 4
+    // Lowercase: roman only when a numeric parent is already on the stack
+    if (_isRoman(inner) && stackTypes.includes('num')) return 'roman'; // (i),(ii)… → level 3
+    return 'alpha';                                    // (a),(b)… → level 1
+}
+const _TYPE_LEVEL = { alpha: 1, num: 2, roman: 3, upper: 4 };
+
+/**
+ * Given a NodeList/array of <P> DOM elements, returns a parallel array of
+ * { el, path, rawDesig } where `path` is the full hierarchy string, e.g. "(a)(1)(i)".
+ */
+function buildParaPaths(pEls) {
+    const stack = []; // [{type, desig}]
+    return Array.from(pEls).map(el => {
+        const m = PARA_DESIG_RE.exec(el.textContent);
+        if (!m) return { el, path: '', rawDesig: '' };
+        const full = m[1];
+        // Already a compound designator in the source text — rebuild stack from it
+        if (/\)\(/.test(full)) {
+            stack.length = 0;
+            (full.match(/\([^)]+\)/g) || []).forEach(pt => {
+                stack.push({ type: _desigType(pt.slice(1, -1), stack.map(s => s.type)), desig: pt });
+            });
+            return { el, path: full, rawDesig: full };
+        }
+        const inner = full.slice(1, -1);
+        const type  = _desigType(inner, stack.map(s => s.type));
+        const level = _TYPE_LEVEL[type];
+        while (stack.length && _TYPE_LEVEL[stack[stack.length - 1].type] >= level) stack.pop();
+        stack.push({ type, desig: full });
+        return { el, path: stack.map(s => s.desig).join(''), rawDesig: full };
+    });
+}
+
 let titlesData     = [];               // [{number, name, latest_amended_on, …}]
 let versionsRaw    = {};               // { titleNum: [{date, part, identifier, …}] }
 let structureCache = {};               // { "title-date": structureJSON }
@@ -486,6 +530,18 @@ function attachDateListeners() {
         if (!titleNum || !sectionId || sectionId.startsWith('—')) return;
         updateDateDropdown('diff', titleNum, datesForSection(titleNum, sectionId, partNum));
     });
+
+    // Paragraph selector → show/hide para-blocks without re-fetching
+    document.getElementById('s-para')?.addEventListener('change', () => {
+        const pid = document.getElementById('s-para')?.value || 'all';
+        document.querySelectorAll('#results .para-block').forEach(el => {
+            if (pid === 'all') {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.toggle('hidden', el.dataset.pid !== pid);
+            }
+        });
+    });
 }
 
 // ── History ──────────────────────────────────────────────────────────────
@@ -579,6 +635,11 @@ async function runQuery() {
 async function runQueryWith(title, date, section) {
     showError(null);
     showLoading(true);
+    resetSearch();
+    // Reset paragraph selector while new data loads
+    const _pg = document.getElementById('s-para-group');
+    if (_pg) _pg.style.display = 'none';
+    selSet('s-para', [{ val: 'all', label: '— All paragraphs —' }], 'all');
     document.getElementById('results').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><span>Fetching eCFR data…</span></div>';
     try {
         const xmlText  = await fetchECFRXML(date, title, section);
@@ -618,6 +679,13 @@ function exportCitationsCSV() {
 function exportSectionRTF() {
     if (!_lastSection) return;
     const { head, pEls, title, section, date } = _lastSection;
+    // Respect the paragraph filter — match on full hierarchy path stored in paraInfos
+    const selectedPara = document.getElementById('s-para')?.value || 'all';
+    const filteredPEls = selectedPara === 'all'
+        ? Array.from(pEls)
+        : (_lastSection.paraInfos || [])
+              .filter(pi => pi.path === selectedPara)
+              .map(pi => pi.el);
 
     // RTF-escape a plain string (handles \, {, }, non-ASCII)
     const esc = s => String(s ?? '')
@@ -628,7 +696,7 @@ function exportSectionRTF() {
 
     const meta   = esc(`Title ${title} CFR §${section} — ${date}`);
     const hdLine = head ? `\\pard\\sa180\\sl280\\slmult1\\b\\fs28 ${esc(head)}\\b0\\par\\par\n` : '';
-    const body   = Array.from(pEls)
+    const body   = filteredPEls
         .map(p => `\\pard\\sa180\\sl280\\slmult1\\fs24 ${esc(p.textContent)}\\par`)
         .join('\n');
 
@@ -733,7 +801,8 @@ function loadCrossRef(title, section) {
 }
 
 function renderSection({ head, cita, citations, pEls, frResults, date, title, section }) {
-    _lastSection = { head, cita, citations, pEls, frResults, date, title, section };
+    const paraInfos = buildParaPaths(pEls);
+    _lastSection = { head, cita, citations, pEls, paraInfos, frResults, date, title, section };
 
     let html = '';
     if (cita) {
@@ -774,12 +843,33 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
             <div class="result-card-body"><div class="section-heading">${head}</div></div></div>`;
     }
     if (pEls.length > 0) {
+        // Wrap each paragraph with its full hierarchy path as data-pid
+        const paraHtml = paraInfos.map(({ el: p, path }) =>
+            `<div class="para-block" data-pid="${path}"><div class="section-para">${p.textContent}</div></div>`
+        ).join('');
+
         html += `<div class="result-card">
             <div class="result-card-header"><span class="result-card-title">Section Text — ${date}</span><button class="copy-btn export-word-btn" onclick="exportSectionRTF()">Export Word</button></div>
-            <div class="result-card-body">${Array.from(pEls).map(p => `<div class="section-para">${p.textContent}</div>`).join('')}</div></div>`;
+            <div class="result-card-body">${paraHtml}</div></div>`;
     }
     if (!html) html = '<div class="results-placeholder"><p>No content found. Try a different date or section.</p></div>';
     document.getElementById('results').innerHTML = html;
+
+    // Populate the paragraph selector with designators found in this section
+    const paraGroup = document.getElementById('s-para-group');
+    const paraSel   = document.getElementById('s-para');
+    // Full hierarchy paths, in document order, deduplicated
+    const designators = [...new Set(paraInfos.map(pi => pi.path).filter(Boolean))];
+    if (designators.length && paraGroup && paraSel) {
+        selSet('s-para',
+            [{ val: 'all', label: '— All paragraphs —' },
+             ...designators.map(d => ({ val: d, label: d }))],
+            'all'
+        );
+        paraGroup.style.display = '';
+    } else if (paraGroup) {
+        paraGroup.style.display = 'none';
+    }
 }
 
 // ── Part Browser ──────────────────────────────────────────────────────────
@@ -795,6 +885,7 @@ async function runPartBrowse() {
 
 async function runPartBrowseWith(title, date, part) {
     showError(null); showLoading(true);
+    resetSearch();
     document.getElementById('results').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><span>Loading part structure…</span></div>';
     try {
         const cacheKey = `${title}-${date}`;
@@ -867,6 +958,7 @@ async function runDiff() {
 
 async function runDiffWith(title, dateA, dateB, section) {
     showError(null); showLoading(true);
+    resetSearch();
     document.getElementById('results').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><span>Fetching both versions…</span></div>';
     try {
         const [xmlA, xmlB] = await Promise.all([fetchECFRXML(dateA, title, section), fetchECFRXML(dateB, title, section)]);
@@ -939,6 +1031,131 @@ function renderDiff({textA,textB,headA,headB,citaA,citaB,dateA,dateB,title,secti
                 </div>
             </div>
         </div></div>`;
+}
+
+// ── Keyword Search ────────────────────────────────────────────────────────
+let _searchMarks = [];
+let _searchMarkIdx = 0;
+
+/** Call at the top of every render function so the bar resets on new results. */
+function resetSearch() {
+    const inp = document.getElementById('searchInput');
+    if (inp) inp.value = '';
+    _searchMarks = [];
+    _searchMarkIdx = 0;
+    _updateSearchUI(0, 0);
+}
+
+/** Triggered by the input's oninput attribute. */
+function runSearch() {
+    const q = (document.getElementById('searchInput')?.value || '').trim();
+    if (!q) { _clearHighlights(); _updateSearchUI(0, 0); return; }
+    _applySearch(q);
+}
+
+/** Clear the search input and remove all highlights. */
+function clearSearch() {
+    const inp = document.getElementById('searchInput');
+    if (inp) inp.value = '';
+    _clearHighlights();
+    _updateSearchUI(0, 0);
+}
+
+/** Step to the previous (−1) or next (+1) match. */
+function navigateSearch(delta) {
+    if (!_searchMarks.length) return;
+    _goToMark(_searchMarkIdx + delta);
+}
+
+/** Handle Enter (next), Shift+Enter (prev), Escape (clear). */
+function onSearchKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); navigateSearch(e.shiftKey ? -1 : 1); }
+    else if (e.key === 'Escape') clearSearch();
+}
+
+function _escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function _clearHighlights() {
+    // Unwrap every <mark> we previously inserted
+    document.querySelectorAll('#results mark.search-hit').forEach(mark => {
+        const p = mark.parentNode;
+        if (p) { p.replaceChild(document.createTextNode(mark.textContent), mark); p.normalize(); }
+    });
+    _searchMarks = [];
+    _searchMarkIdx = 0;
+}
+
+function _applySearch(query) {
+    _clearHighlights();
+    const results = document.getElementById('results');
+    if (!results) return;
+    const re = new RegExp(_escRe(query), 'gi');
+
+    // Walk every text node in #results; skip hidden para-blocks
+    const walker = document.createTreeWalker(results, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) {
+        const tag = n.parentNode?.tagName?.toLowerCase();
+        if (tag === 'script' || tag === 'style') continue;
+        if (_isInsideHidden(n)) continue;
+        re.lastIndex = 0;
+        if (re.test(n.textContent)) nodes.push(n);
+    }
+
+    for (const textNode of nodes) {
+        const text = textNode.textContent;
+        re.lastIndex = 0;
+        const frag = document.createDocumentFragment();
+        let last = 0, m;
+        while ((m = re.exec(text)) !== null) {
+            if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+            const mark = document.createElement('mark');
+            mark.className = 'search-hit';
+            mark.textContent = m[0];
+            frag.appendChild(mark);
+            _searchMarks.push(mark);
+            last = m.index + m[0].length;
+        }
+        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        textNode.parentNode.replaceChild(frag, textNode);
+    }
+
+    const total = _searchMarks.length;
+    _updateSearchUI(total, total > 0 ? 1 : 0);
+    if (total > 0) _goToMark(0);
+}
+
+function _isInsideHidden(textNode) {
+    let el = textNode.parentNode;
+    const results = document.getElementById('results');
+    while (el && el !== results) {
+        if (el.classList?.contains('hidden')) return true;
+        el = el.parentNode;
+    }
+    return false;
+}
+
+function _goToMark(idx) {
+    _searchMarks.forEach(m => m.classList.remove('search-hit-active'));
+    _searchMarkIdx = ((idx % _searchMarks.length) + _searchMarks.length) % _searchMarks.length;
+    const mark = _searchMarks[_searchMarkIdx];
+    mark.classList.add('search-hit-active');
+    mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    _updateSearchUI(_searchMarks.length, _searchMarkIdx + 1);
+}
+
+function _updateSearchUI(total, current) {
+    const counter = document.getElementById('searchCounter');
+    const prev    = document.getElementById('searchPrev');
+    const next    = document.getElementById('searchNext');
+    const inp     = document.getElementById('searchInput')?.value || '';
+    if (counter) {
+        counter.textContent = total > 0 ? `${current} of ${total}` : (inp.trim() ? 'No matches' : '');
+        counter.className   = 'search-counter' + (inp.trim() && total === 0 ? ' no-results' : '');
+    }
+    if (prev) prev.disabled = total === 0;
+    if (next) next.disabled = total === 0;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────

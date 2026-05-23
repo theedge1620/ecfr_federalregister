@@ -81,6 +81,15 @@
                 <div class="latest-tag" id="s-latest-tag"></div>
             </div>
 
+            <div class="form-group" id="s-para-group" style="display:none">
+                <label>Paragraph <span class="live-badge">optional</span></label>
+                <div class="select-wrap">
+                    <select id="s-para">
+                        <option value="all">— All paragraphs —</option>
+                    </select>
+                </div>
+            </div>
+
             <button class="btn" onclick="runQuery()">Fetch eCFR Data</button>
             <div class="field-hint">
                 All options load live from the <a href="https://www.ecfr.gov" target="_blank">eCFR API</a>.
@@ -202,6 +211,20 @@
     <main class="main-content">
         <div class="loading-bar" id="loadingBar"></div>
         <div class="error-banner" id="errorBanner"></div>
+
+        <!-- ── Keyword search bar ── -->
+        <div class="search-bar">
+            <span class="search-bar-label">Find in text</span>
+            <div class="search-input-wrap">
+                <input type="text" id="searchInput" placeholder="Search displayed text…"
+                       autocomplete="off" oninput="runSearch()" onkeydown="onSearchKey(event)">
+                <button class="search-clear" onclick="clearSearch()" title="Clear">×</button>
+            </div>
+            <span class="search-counter" id="searchCounter"></span>
+            <button class="search-nav" id="searchPrev" onclick="navigateSearch(-1)" title="Previous (Shift+Enter)" disabled>▲</button>
+            <button class="search-nav" id="searchNext" onclick="navigateSearch(1)"  title="Next (Enter)" disabled>▼</button>
+        </div>
+
         <div id="results">
             <div class="results-placeholder">
                 <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor">
