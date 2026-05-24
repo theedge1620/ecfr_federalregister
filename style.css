@@ -593,7 +593,6 @@ select option { background: #ffffff; color: var(--text); }
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 7px;
-    margin-bottom: 18px;
     flex-wrap: wrap;
 }
 .search-bar-label {
