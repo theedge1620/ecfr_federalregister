@@ -16,7 +16,7 @@ const SUPPRESSED_DATES = {
 
 // ── Cache ────────────────────────────────────────────────────────────────
 // Regex to detect a leading paragraph designator, e.g. (a), (b)(1), (iv)
-const PARA_DESIG_RE = /^\s*(\([a-zA-Z0-9]+\)(?:\([a-zA-Z0-9]+\))*)/;
+const PARA_DESIG_RE = /^\s*(\([a-zA-Z0-9]+\)(?:\([a-zA-Z0-9]+\))*)\s*/;
 
 // ── Paragraph hierarchy path builder ─────────────────────────────────────
 // Classifies each designator as alpha(1) / num(2) / roman(3) / upper(4)
@@ -765,10 +765,10 @@ function extractCrossRefs(pEls, currentTitle, currentSection) {
         const refTitle = m[1], sec = m[2] || m[4], part = m[3];
         if (sec) {
             const key = `t${refTitle}-s${sec}`;
-            if (!refs.has(key)) refs.set(key, { label: `${refTitle} CFR § ${sec}`, title: refTitle, section: sec, type: 'section' });
+            if (!refs.has(key)) refs.set(key, { label: `${refTitle} CFR § ${sec}`, title: refTitle, section: sec, type: 'section', raw: m[0] });
         } else if (part) {
             const key = `t${refTitle}-p${part}`;
-            if (!refs.has(key)) refs.set(key, { label: `${refTitle} CFR part ${part}`, title: refTitle, part, type: 'part' });
+            if (!refs.has(key)) refs.set(key, { label: `${refTitle} CFR part ${part}`, title: refTitle, part, type: 'part', raw: m[0] });
         }
     }
 
@@ -780,7 +780,7 @@ function extractCrossRefs(pEls, currentTitle, currentSection) {
         const sec = m[1];
         if (sec === currentSection) continue;
         const key = `t${currentTitle}-s${sec}`;
-        if (!refs.has(key)) refs.set(key, { label: `§ ${sec}`, title: currentTitle, section: sec, type: 'section' });
+        if (!refs.has(key)) refs.set(key, { label: `§ ${sec}`, title: currentTitle, section: sec, type: 'section', raw: m[0] });
     }
 
     // bare "part X" not already captured via full ref
@@ -789,7 +789,7 @@ function extractCrossRefs(pEls, currentTitle, currentSection) {
         const before = text.slice(Math.max(0, m.index - 20), m.index);
         if (/\d+\s+CFR\s*$/i.test(before)) continue;
         const key = `t${currentTitle}-p${m[1]}`;
-        if (!refs.has(key)) refs.set(key, { label: `Part ${m[1]}`, title: currentTitle, part: m[1], type: 'part' });
+        if (!refs.has(key)) refs.set(key, { label: `Part ${m[1]}`, title: currentTitle, part: m[1], type: 'part', raw: m[0] });
     }
 
     return [...refs.values()].sort((a, b) => a.label.localeCompare(b.label));
@@ -798,6 +798,41 @@ function extractCrossRefs(pEls, currentTitle, currentSection) {
 function loadCrossRef(title, section) {
     if (!_lastSection) return;
     runQueryWith(title, _lastSection.date, section);
+}
+
+// ── Referenced Codes & Standards ──────────────────────────────────────────
+const _STD_ORGS = 'ASME|IEEE|ANSI|ASTM|ANS|ISO|IEC|NFPA|ACI|AWS|NEMA|API|AISC|ASCE|AGMA|NACE|AWWA|SAE|UL|EPRI|IAEA|ICEA|AISI|ASQ|ASNT|AAMI|ASHRAE';
+
+function extractStandards(pEls) {
+    const text = Array.from(pEls).map(p => p.textContent).join(' ');
+    return _extractStandardsFromText(text);
+}
+
+function _extractStandardsFromText(text) {
+    if (!text) return [];
+    const found = new Set();
+    let m;
+
+    // ASME named codes, e.g. "ASME Boiler and Pressure Vessel Code, Section III, Division 1",
+    // "ASME Operation and Maintenance Code", "ASME OM Code", "ASME Code for Operation and
+    // Maintenance of Nuclear Power Plants" — optionally followed by a Section/Division suffix.
+    const asmeCodeRe = /\bASME\s+(?:(?:[A-Za-z]+\s+){1,6}Code\b|OM(?:-S\/G|-\d+[A-Za-z]*)?(?:\s+Code)?\b|Code\s+(?:for|of)\s+(?:[A-Za-z]+\s+){1,8}?(?:Plants?|Reactors?|Vessels?|Piping|Components?)\b)(?:,?\s*Section\s+[IVXLCD]+)?(?:,?\s*Division\s+\d+)?/g;
+    while ((m = asmeCodeRe.exec(text)) !== null) found.add(m[0].replace(/\s+/g, ' ').trim());
+
+    // Org + standard designation, e.g. "IEEE Std 308-1971", "ANSI/ANS-58.8-1994", "ASTM E185-82", "API 650"
+    const stdRe = new RegExp(
+        `\\b(?:ANSI\\/)?(?:${_STD_ORGS})(?:\\/(?:${_STD_ORGS}))?` +
+        `[\\s-]+(?:Std\\.?|Standard|No\\.?)?\\s*` +
+        `[A-Z]{0,4}-?\\d+(?:\\.\\d+)*[A-Za-z]?(?:[-–]\\d{2,4}[a-z]?)?`,
+        'g'
+    );
+    while ((m = stdRe.exec(text)) !== null) found.add(m[0].replace(/\s+/g, ' ').trim());
+
+    // Regulatory Guides
+    const rgRe = /\bRegulatory\s+Guide\s+\d+(?:\.\d+)*/gi;
+    while ((m = rgRe.exec(text)) !== null) found.add(m[0].replace(/\s+/g, ' ').trim());
+
+    return [...found].sort((a, b) => a.localeCompare(b));
 }
 
 function renderSection({ head, cita, citations, pEls, frResults, date, title, section }) {
@@ -825,16 +860,26 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         const xrefs = extractCrossRefs(pEls, title, section);
         const chips = xrefs.length
             ? xrefs.map(r => {
+                const jumpBtn = `<button class="xref-jump" onclick="jumpToReference('${_jsEscape(r.raw)}')" title="Jump to this reference in the text">⌖</button>`;
                 if (r.type === 'section') {
-                    return `<span class="xref-chip" onclick="loadCrossRef('${r.title}','${r.section}')" title="Load ${r.label}">${r.label}</span>`;
+                    return `<span class="xref-chip" onclick="loadCrossRef('${r.title}','${r.section}')" title="Load ${r.label}">${r.label}</span>${jumpBtn}`;
                 }
                 const href = `https://www.ecfr.gov/current/title-${r.title}/part-${r.part}`;
-                return `<a class="xref-chip xref-part" href="${href}" target="_blank" title="View on eCFR.gov">${r.label} ↗</a>`;
+                return `<a class="xref-chip xref-part" href="${href}" target="_blank" title="View on eCFR.gov">${r.label} ↗</a>${jumpBtn}`;
             }).join('')
             : '<span class="xref-empty">No cross-references detected in this section.</span>';
         html += `<div class="result-card">
             <div class="result-card-header"><span class="result-card-title">Cross References</span></div>
             <div class="result-card-body"><div class="xref-list">${chips}</div></div></div>`;
+
+        // Referenced Codes & Standards card (e.g. ASME, IEEE, ANSI)
+        const standards = extractStandards(pEls);
+        const stdChips = standards.length
+            ? standards.map(s => `<span class="standard-chip" onclick="jumpToReference('${_jsEscape(s)}')" title="Jump to this reference in the text">${s}</span>`).join('')
+            : '<span class="xref-empty">No external codes or standards detected in this section.</span>';
+        html += `<div class="result-card">
+            <div class="result-card-header"><span class="result-card-title">Regulatory Guidance and Referenced Codes and Standards</span></div>
+            <div class="result-card-body"><div class="xref-list">${stdChips}</div></div></div>`;
     }
 
     if (head) {
@@ -843,14 +888,22 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
             <div class="result-card-body"><div class="section-heading">${head}</div></div></div>`;
     }
     if (pEls.length > 0) {
-        // Wrap each paragraph with its full hierarchy path as data-pid
-        const paraHtml = paraInfos.map(({ el: p, path }) =>
-            `<div class="para-block" data-pid="${path}"><div class="section-para">${p.textContent}</div></div>`
-        ).join('');
+        // Wrap each paragraph with its hierarchy path/level as data attributes, and
+        // split off the leading designator — (a), (1), (i) — for bold styling + indent.
+        const paraHtml = paraInfos.map(({ el: p, path }) => {
+            const level  = (path.match(/\(/g) || []).length;
+            const indent = Math.max(0, level - 1) * 22;
+            const text   = p.textContent;
+            const m      = PARA_DESIG_RE.exec(text);
+            const desig  = m ? `<span class="para-desig">${m[1]}</span> ` : '';
+            const body   = m ? text.slice(m[0].length) : text;
+            return `<div class="para-block" data-pid="${path}" data-level="${level}" style="margin-left:${indent}px">` +
+                   `<div class="section-para">${desig}${body}</div></div>`;
+        }).join('');
 
         html += `<div class="result-card">
             <div class="result-card-header"><span class="result-card-title">Section Text — ${date}</span><button class="copy-btn export-word-btn" onclick="exportSectionRTF()">Export Word</button></div>
-            <div class="result-card-body">${paraHtml}</div></div>`;
+            <div class="result-card-body"><div id="paraBody">${paraHtml}</div></div></div>`;
     }
     if (!html) html = '<div class="results-placeholder"><p>No content found. Try a different date or section.</p></div>';
     document.getElementById('results').innerHTML = html;
@@ -1086,13 +1139,38 @@ function _clearHighlights() {
 }
 
 function _applySearch(query) {
-    _clearHighlights();
-    const results = document.getElementById('results');
-    if (!results) return;
-    const re = new RegExp(_escRe(query), 'gi');
+    _highlightInScope(_escRe(query));
+}
 
-    // Walk every text node in #results; skip hidden para-blocks
-    const walker = document.createTreeWalker(results, NodeFilter.SHOW_TEXT);
+/** Escape a string for safe embedding inside a single-quoted JS string literal in an onclick attribute. */
+function _jsEscape(s) {
+    return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/**
+ * Jump to (and highlight) the first occurrence of a reference's raw text within the
+ * displayed section text. Tolerates whitespace differences between the extracted
+ * reference and the source text.
+ */
+function jumpToReference(rawText) {
+    const container = document.getElementById('paraBody');
+    if (!container || !rawText) return;
+    const pattern = rawText.trim().split(/\s+/).map(_escRe).join('\\s+');
+    _highlightInScope(pattern, container);
+    const inp = document.getElementById('searchInput');
+    if (inp) inp.value = rawText.trim();
+    if (!_searchMarks.length) showToast('Reference not found in displayed text');
+}
+
+/** Highlight all matches of a regex source string within `root` (defaults to #results). */
+function _highlightInScope(reSource, root) {
+    _clearHighlights();
+    const scope = root || document.getElementById('results');
+    if (!scope) return;
+    const re = new RegExp(reSource, 'gi');
+
+    // Walk every text node in scope; skip hidden para-blocks
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
     const nodes = [];
     let n;
     while ((n = walker.nextNode())) {
@@ -1116,6 +1194,7 @@ function _applySearch(query) {
             frag.appendChild(mark);
             _searchMarks.push(mark);
             last = m.index + m[0].length;
+            if (m[0].length === 0) re.lastIndex++;
         }
         if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
         textNode.parentNode.replaceChild(frag, textNode);
