@@ -73,9 +73,12 @@ async function setMode(mode) {
     document.getElementById('sectionFields').style.display = mode === 'section' ? 'block' : 'none';
     document.getElementById('partFields').style.display    = mode === 'part'    ? 'block' : 'none';
     document.getElementById('diffFields').style.display    = mode === 'diff'    ? 'block' : 'none';
-    ['Section','Part','Diff'].forEach(m =>
-        document.getElementById('mode' + m).classList.toggle('active', m.toLowerCase() === mode)
-    );
+    ['Section','Part','Diff'].forEach(m => {
+        const btn = document.getElementById('mode' + m);
+        const isActive = m.toLowerCase() === mode;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
     // If titles are loaded, populate the title select then cascade dates → parts → sections.
     // Results are cached after the first fetch so switching modes is fast.
     if (titlesData.length) {
@@ -569,12 +572,12 @@ function renderHistory() {
     const h = loadHistory();
     if (!h.length) { list.innerHTML = '<div class="history-empty">No searches yet</div>'; return; }
     list.innerHTML = h.map(e => `
-        <div class="history-item" onclick='restoreQuery(${JSON.stringify(e)})'>
+        <div class="history-item" role="button" tabindex="0" aria-label="Reload ${e.label}" onclick='restoreQuery(${JSON.stringify(e)})' onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
             <div class="history-item-text">
                 <div class="history-item-title">${e.label}</div>
                 <div class="history-item-date">${e.ts}</div>
             </div>
-            <button class="history-delete" onclick="event.stopPropagation();deleteHistoryItem('${e.key.replace(/'/g,"\\'")}')" title="Remove">×</button>
+            <button class="history-delete" onclick="event.stopPropagation();deleteHistoryItem('${e.key.replace(/'/g,"\\'")}')" title="Remove" aria-label="Remove ${e.label} from history">×</button>
         </div>`).join('');
 }
 function restoreQuery(entry) {
@@ -841,14 +844,14 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
 
     let html = '';
     if (cita) {
-        const frLinks  = citations.map(c => `<a class="fr-link" href="https://www.federalregister.gov/citation/${c.replaceAll(' ','-')}" target="_blank">↗ ${c}</a>`).join('');
+        const frLinks  = citations.map(c => `<a class="fr-link" href="https://www.federalregister.gov/citation/${c.replaceAll(' ','-')}" target="_blank" rel="noopener noreferrer">↗ ${c}<span class="sr-only"> (opens in new tab)</span></a>`).join('');
         const pdfLinks = frResults.filter(r => r.pdf_url).map(r =>
-            `<a class="pdf-link" href="${r.pdf_url}" target="_blank">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 10H8v2h4v-2zm0 4H8v2h4v-2zM8 8h8V6H8v2zm12-2l-6-6H6C4.9 0 4 .9 4 2v20c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6zm-2 14H6V2h7v5h5v13z"/></svg>
-                PDF ${r.citation}
+            `<a class="pdf-link" href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 10H8v2h4v-2zm0 4H8v2h4v-2zM8 8h8V6H8v2zm12-2l-6-6H6C4.9 0 4 .9 4 2v20c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6zm-2 14H6V2h7v5h5v13z"/></svg>
+                PDF ${r.citation}<span class="sr-only"> (opens in new tab)</span>
             </a>`).join('');
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Citations</span><button class="copy-btn export-csv-btn" onclick="exportCitationsCSV()">Export CSV</button></div>
+            <div class="result-card-header"><h3 class="result-card-title">Citations</h3><button class="copy-btn export-csv-btn" onclick="exportCitationsCSV()">Export CSV</button></div>
             <div class="result-card-body">
                 <div class="citation-text">${cita}</div>
                 ${frLinks  ? `<div class="link-row">${frLinks}</div>`  : ''}
@@ -860,31 +863,31 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         const xrefs = extractCrossRefs(pEls, title, section);
         const chips = xrefs.length
             ? xrefs.map(r => {
-                const jumpBtn = `<button class="xref-jump" onclick="jumpToReference('${_jsEscape(r.raw)}')" title="Jump to this reference in the text">⌖</button>`;
+                const jumpBtn = `<button class="xref-jump" onclick="jumpToReference('${_jsEscape(r.raw)}')" title="Jump to this reference in the text" aria-label="Jump to ${r.label} in the text">⌖</button>`;
                 if (r.type === 'section') {
-                    return `<span class="xref-chip" onclick="loadCrossRef('${r.title}','${r.section}')" title="Load ${r.label}">${r.label}</span>${jumpBtn}`;
+                    return `<button type="button" class="xref-chip" onclick="loadCrossRef('${r.title}','${r.section}')" title="Load ${r.label}">${r.label}</button>${jumpBtn}`;
                 }
                 const href = `https://www.ecfr.gov/current/title-${r.title}/part-${r.part}`;
-                return `<a class="xref-chip xref-part" href="${href}" target="_blank" title="View on eCFR.gov">${r.label} ↗</a>${jumpBtn}`;
+                return `<a class="xref-chip xref-part" href="${href}" target="_blank" rel="noopener noreferrer" title="View on eCFR.gov">${r.label} ↗<span class="sr-only"> (opens in new tab)</span></a>${jumpBtn}`;
             }).join('')
             : '<span class="xref-empty">No cross-references detected in this section.</span>';
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Cross References</span></div>
+            <div class="result-card-header"><h3 class="result-card-title">Cross References</h3></div>
             <div class="result-card-body"><div class="xref-list">${chips}</div></div></div>`;
 
         // Referenced Codes & Standards card (e.g. ASME, IEEE, ANSI)
         const standards = extractStandards(pEls);
         const stdChips = standards.length
-            ? standards.map(s => `<span class="standard-chip" onclick="jumpToReference('${_jsEscape(s)}')" title="Jump to this reference in the text">${s}</span>`).join('')
+            ? standards.map(s => `<button type="button" class="standard-chip" onclick="jumpToReference('${_jsEscape(s)}')" title="Jump to this reference in the text">${s}</button>`).join('')
             : '<span class="xref-empty">No external codes or standards detected in this section.</span>';
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Regulatory Guidance and Referenced Codes and Standards</span></div>
+            <div class="result-card-header"><h3 class="result-card-title">Regulatory Guidance and Referenced Codes and Standards</h3></div>
             <div class="result-card-body"><div class="xref-list">${stdChips}</div></div></div>`;
     }
 
     if (head) {
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Section — ${title} CFR §${section}</span></div>
+            <div class="result-card-header"><h3 class="result-card-title">Section — ${title} CFR §${section}</h3></div>
             <div class="result-card-body"><div class="section-heading">${head}</div></div></div>`;
     }
     if (pEls.length > 0) {
@@ -902,7 +905,7 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         }).join('');
 
         html += `<div class="result-card">
-            <div class="result-card-header"><span class="result-card-title">Section Text — ${date}</span><button class="copy-btn export-word-btn" onclick="exportSectionRTF()">Export Word</button></div>
+            <div class="result-card-header"><h3 class="result-card-title">Section Text — ${date}</h3><button class="copy-btn export-word-btn" onclick="exportSectionRTF()">Export Word</button></div>
             <div class="result-card-body"><div id="paraBody">${paraHtml}</div></div></div>`;
     }
     if (!html) html = '<div class="results-placeholder"><p>No content found. Try a different date or section.</p></div>';
@@ -965,7 +968,7 @@ function renderPartBrowser(partNode, date, title, part) {
             const isSection = child.type === 'section';
             const ml = depth * 18;
             const clickAttr = isSection
-                ? `onclick="loadSection('${date}','${title}','${child.identifier}')" style="margin-left:${ml}px;cursor:pointer"`
+                ? `onclick="loadSection('${date}','${title}','${child.identifier}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" role="button" tabindex="0" aria-label="Load section ${child.identifier}: ${child.label_description || child.label || ''}" style="margin-left:${ml}px;cursor:pointer"`
                 : `style="margin-left:${ml}px;cursor:default;opacity:0.7"`;
             rows += `<div class="part-item" ${clickAttr}>
                 <span class="part-num">${child.identifier || ''}</span>
@@ -978,7 +981,7 @@ function renderPartBrowser(partNode, date, title, part) {
     walk(partNode, 0);
     document.getElementById('results').innerHTML = `
     <div class="result-card">
-        <div class="result-card-header"><span class="result-card-title">Title ${title} · Part ${part} Structure (${date})</span></div>
+        <div class="result-card-header"><h3 class="result-card-title">Title ${title} · Part ${part} Structure (${date})</h3></div>
         <div class="result-card-body">
             <div class="part-header-desc">${partNode.label_description || partNode.label || ''}</div>
             <div class="part-tree">${rows || '<div class="history-empty">No sections found.</div>'}</div>
@@ -1063,7 +1066,7 @@ function renderDiff({textA,textB,headA,headB,citaA,citaB,dateA,dateB,title,secti
            <div class="diff-cita-detail"><b>${dateB}:</b> ${citaB||'(none)'}</div>`;
     document.getElementById('results').innerHTML = `
     <div class="result-card">
-        <div class="result-card-header"><span class="result-card-title">Title ${title} §${section} — Version Comparison</span><button class="copy-btn export-word-btn" onclick="exportDiffRTF()">Export Word</button></div>
+        <div class="result-card-header"><h3 class="result-card-title">Title ${title} §${section} — Version Comparison</h3><button class="copy-btn export-word-btn" onclick="exportDiffRTF()">Export Word</button></div>
         <div class="result-card-body">
             <div class="diff-stats">
                 <span class="stat-add">+${adds} added</span>

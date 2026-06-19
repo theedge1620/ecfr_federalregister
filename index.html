@@ -12,77 +12,77 @@
 
 <header class="app-header">
     <div class="header-logo">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
         </svg>
     </div>
     <div class="header-text">
-        <div class="header-title">eCFR <span>CITATION</span> RETRIEVER</div>
+        <h1 class="header-title">eCFR <span>CITATION</span> RETRIEVER</h1>
         <div class="header-subtitle">Federal Register Mapping Tool · eCFR API · v2.3</div>
     </div>
-    <div class="api-status" id="apiStatus">
-        <span class="api-dot" id="apiDot"></span><span id="apiStatusText">Initializing…</span>
+    <div class="api-status" id="apiStatus" role="status" aria-live="polite">
+        <span class="api-dot" id="apiDot" aria-hidden="true"></span><span id="apiStatusText">Initializing…</span>
     </div>
 </header>
 
 <div class="app-body">
 
     <!-- ── Sidebar ── -->
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Search filters">
 
-        <div class="mode-toggle">
-            <button class="active" id="modeSection" onclick="setMode('section')">Section</button>
-            <button id="modePart"                   onclick="setMode('part')">Part</button>
-            <button id="modeDiff"                   onclick="setMode('diff')">Diff</button>
+        <div class="mode-toggle" role="group" aria-label="View mode">
+            <button class="active" id="modeSection" onclick="setMode('section')" aria-pressed="true">Section</button>
+            <button id="modePart"                   onclick="setMode('part')" aria-pressed="false">Part</button>
+            <button id="modeDiff"                   onclick="setMode('diff')" aria-pressed="false">Diff</button>
         </div>
 
         <!-- ══ SECTION MODE ══ -->
         <div id="sectionFields">
-            <div class="panel-label">Section Lookup</div>
+            <h2 class="panel-label">Section Lookup</h2>
 
             <div class="form-group">
-                <label>CFR Title</label>
+                <label for="s-title">CFR Title</label>
                 <div class="select-wrap">
                     <select id="s-title" onchange="onTitleChange('section')" disabled>
                         <option>Loading titles…</option>
                     </select>
-                    <div class="sel-spinner" id="spin-s-title" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-s-title" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Part</label>
+                <label for="s-part">Part</label>
                 <div class="select-wrap">
                     <select id="s-part" disabled>
                         <option>— select title first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-s-part" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-s-part" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Section</label>
+                <label for="s-section">Section</label>
                 <div class="select-wrap">
                     <select id="s-section" disabled>
                         <option>— select part first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-s-section" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-s-section" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Date <span class="live-badge">live</span></label>
+                <label for="s-date">Date <span class="live-badge">live</span></label>
                 <div class="select-wrap">
                     <select id="s-date" disabled>
                         <option>— select part first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-s-date" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-s-date" style="display:none" aria-hidden="true"></div>
                 </div>
-                <div class="latest-tag" id="s-latest-tag"></div>
+                <div class="latest-tag" id="s-latest-tag" aria-live="polite"></div>
             </div>
 
             <div class="form-group" id="s-para-group" style="display:none">
-                <label>Paragraph <span class="live-badge">optional</span></label>
+                <label for="s-para">Paragraph <span class="live-badge">optional</span></label>
                 <div class="select-wrap">
                     <select id="s-para">
                         <option value="all">— All paragraphs —</option>
@@ -92,44 +92,44 @@
 
             <button class="btn" onclick="runQuery()">Fetch eCFR Data</button>
             <div class="field-hint">
-                All options load live from the <a href="https://www.ecfr.gov" target="_blank">eCFR API</a>.
+                All options load live from the <a href="https://www.ecfr.gov" target="_blank" rel="noopener noreferrer">eCFR API<span class="sr-only"> (opens in new tab)</span></a>.
                 Date filters to amendments for the selected section.
             </div>
         </div>
 
         <!-- ══ PART MODE ══ -->
         <div id="partFields" style="display:none">
-            <div class="panel-label">Part Browser</div>
+            <h2 class="panel-label">Part Browser</h2>
 
             <div class="form-group">
-                <label>CFR Title</label>
+                <label for="p-title">CFR Title</label>
                 <div class="select-wrap">
                     <select id="p-title" onchange="onTitleChange('part')" disabled>
                         <option>Loading titles…</option>
                     </select>
-                    <div class="sel-spinner" id="spin-p-title" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-p-title" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Part</label>
+                <label for="p-part">Part</label>
                 <div class="select-wrap">
                     <select id="p-part" disabled>
                         <option>— select title first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-p-part" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-p-part" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Date <span class="live-badge">live</span></label>
+                <label for="p-date">Date <span class="live-badge">live</span></label>
                 <div class="select-wrap">
                     <select id="p-date" disabled>
                         <option>— select part first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-p-date" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-p-date" style="display:none" aria-hidden="true"></div>
                 </div>
-                <div class="latest-tag" id="p-latest-tag"></div>
+                <div class="latest-tag" id="p-latest-tag" aria-live="polite"></div>
             </div>
 
             <button class="btn" onclick="runPartBrowse()">Browse Part Structure</button>
@@ -138,55 +138,55 @@
 
         <!-- ══ DIFF MODE ══ -->
         <div id="diffFields" style="display:none">
-            <div class="panel-label">Date Comparison</div>
+            <h2 class="panel-label">Date Comparison</h2>
 
             <div class="form-group">
-                <label>CFR Title</label>
+                <label for="d-title">CFR Title</label>
                 <div class="select-wrap">
                     <select id="d-title" onchange="onTitleChange('diff')" disabled>
                         <option>Loading titles…</option>
                     </select>
-                    <div class="sel-spinner" id="spin-d-title" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-d-title" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Part</label>
+                <label for="d-part">Part</label>
                 <div class="select-wrap">
                     <select id="d-part" onchange="onPartChange('diff')" disabled>
                         <option>— select title first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-d-part" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-d-part" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Section</label>
+                <label for="d-section">Section</label>
                 <div class="select-wrap">
                     <select id="d-section" disabled>
                         <option>— select part first —</option>
                     </select>
-                    <div class="sel-spinner" id="spin-d-section" style="display:none"></div>
+                    <div class="sel-spinner" id="spin-d-section" style="display:none" aria-hidden="true"></div>
                 </div>
             </div>
 
             <div class="diff-dates-row">
                 <div class="form-group">
-                    <label>Date A <span class="date-badge date-a">earlier</span></label>
+                    <label for="d-dateA">Date A <span class="date-badge date-a">earlier</span></label>
                     <div class="select-wrap">
                         <select id="d-dateA" disabled>
                             <option>— select title first —</option>
                         </select>
-                        <div class="sel-spinner" id="spin-d-dateA" style="display:none"></div>
+                        <div class="sel-spinner" id="spin-d-dateA" style="display:none" aria-hidden="true"></div>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Date B <span class="date-badge date-b">later</span></label>
+                    <label for="d-dateB">Date B <span class="date-badge date-b">later</span></label>
                     <div class="select-wrap">
                         <select id="d-dateB" disabled>
                             <option>— select title first —</option>
                         </select>
-                        <div class="sel-spinner" id="spin-d-dateB" style="display:none"></div>
+                        <div class="sel-spinner" id="spin-d-dateB" style="display:none" aria-hidden="true"></div>
                     </div>
                 </div>
             </div>
@@ -196,25 +196,25 @@
 
         <!-- ── Keyword search bar ── -->
         <div class="search-bar">
-            <span class="search-bar-label">Find in text</span>
+            <label class="search-bar-label" for="searchInput">Find in text</label>
             <div class="search-input-wrap">
                 <input type="text" id="searchInput" placeholder="Search displayed text…"
                        autocomplete="off" oninput="runSearch()" onkeydown="onSearchKey(event)">
-                <button class="search-clear" onclick="clearSearch()" title="Clear">×</button>
+                <button class="search-clear" onclick="clearSearch()" title="Clear" aria-label="Clear search">×</button>
             </div>
             <div style="display:flex;align-items:center;gap:6px;width:100%;justify-content:flex-end">
-                <span class="search-counter" id="searchCounter"></span>
-                <button class="search-nav" id="searchPrev" onclick="navigateSearch(-1)" title="Previous (Shift+Enter)" disabled>▲</button>
-                <button class="search-nav" id="searchNext" onclick="navigateSearch(1)"  title="Next (Enter)" disabled>▼</button>
+                <span class="search-counter" id="searchCounter" role="status" aria-live="polite"></span>
+                <button class="search-nav" id="searchPrev" onclick="navigateSearch(-1)" title="Previous (Shift+Enter)" aria-label="Previous match" disabled>▲</button>
+                <button class="search-nav" id="searchNext" onclick="navigateSearch(1)"  title="Next (Enter)" aria-label="Next match" disabled>▼</button>
             </div>
         </div>
 
         <!-- Search History -->
         <div class="history-panel">
-            <div class="panel-label" style="display:flex;justify-content:space-between;align-items:center">
+            <h2 class="panel-label" style="display:flex;justify-content:space-between;align-items:center">
                 <span>Search History</span>
-                <button class="clear-history-btn" onclick="clearHistory()">Clear</button>
-            </div>
+                <button class="clear-history-btn" onclick="clearHistory()" aria-label="Clear search history">Clear</button>
+            </h2>
             <div class="history-list" id="historyList">
                 <div class="history-empty">No searches yet</div>
             </div>
@@ -223,12 +223,12 @@
     </aside>
 
     <!-- ── Main Content ── -->
-    <main class="main-content">
-        <div class="loading-bar" id="loadingBar"></div>
-        <div class="error-banner" id="errorBanner"></div>
+    <main class="main-content" aria-label="Results">
+        <div class="loading-bar" id="loadingBar" role="status" aria-live="polite"><span class="sr-only">Loading…</span></div>
+        <div class="error-banner" id="errorBanner" role="alert" aria-live="assertive"></div>
         <div id="results">
             <div class="results-placeholder">
-                <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
                 </svg>
                 <p>Dropdowns are loading live from the eCFR API.<br>Select your parameters and fetch data.</p>
@@ -242,7 +242,7 @@
     </main>
 </div>
 
-<div class="toast" id="toast">Copied to clipboard</div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">Copied to clipboard</div>
 
 <script src="script.js"></script>
 </body>
