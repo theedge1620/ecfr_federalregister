@@ -8,6 +8,10 @@ const ECFR_BASE     = 'https://www.ecfr.gov/api/versioner/v1';
 const DEFAULT_TITLE = '10';
 const DEFAULT_PART  = '50';
 
+// Max characters of a descriptive title shown in the sidebar dropdowns;
+// longer titles are cut here and suffixed with "..."
+const DROPDOWN_LABEL_MAX = 35;
+
 // Dates (or year prefixes) to exclude from dropdowns for specific titles.
 // Add entries here when the eCFR API returns anomalous/empty snapshots.
 const SUPPRESSED_DATES = {
@@ -68,7 +72,10 @@ let _lastDiff      = null;            // last rendered diff data (for export fun
 // ── Mode ─────────────────────────────────────────────────────────────────
 let currentMode = 'section';
 
-async function setMode(mode) {
+// `cascade` resets the controls to their defaults for the mode. Callers that
+// are about to point them at a specific section pass false and drive it
+// themselves — see openInMode().
+async function setMode(mode, cascade = true) {
     currentMode = mode;
     document.getElementById('sectionFields').style.display = mode === 'section' ? 'block' : 'none';
     document.getElementById('partFields').style.display    = mode === 'part'    ? 'block' : 'none';
@@ -81,7 +88,7 @@ async function setMode(mode) {
     });
     // If titles are loaded, populate the title select then cascade dates → parts → sections.
     // Results are cached after the first fetch so switching modes is fast.
-    if (titlesData.length) {
+    if (cascade && titlesData.length) {
         populateTitleSelect(mode);
         await onTitleChange(mode);
     }
@@ -133,11 +140,16 @@ function selSet(id, options, selectedVal) {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '';
-    options.forEach(({ val, label }) => {
+    options.forEach(({ val, label, disabled }) => {
         const o = document.createElement('option');
-        o.value = val;
-        o.textContent = label;
-        if (String(val) === String(selectedVal)) o.selected = true;
+        if (disabled) {
+            o.disabled = true;
+            o.textContent = label;
+        } else {
+            o.value = val;
+            o.textContent = label;
+            if (String(val) === String(selectedVal)) o.selected = true;
+        }
         sel.appendChild(o);
     });
     sel.disabled = false;
@@ -269,7 +281,7 @@ async function fetchVersions(titleNum, spinPrefix) {
 }
 
 // ── 5. Load structure (parts + sections) for title + date ───────────────
-async function loadStructure(titleNum, date, mode) {
+async function loadStructure(titleNum, date, mode, preferPart) {
     const prefix = { section: 's', part: 'p', diff: 'd' }[mode];
     const cacheKey = `${titleNum}-${date}`;
 
@@ -305,12 +317,19 @@ async function loadStructure(titleNum, date, mode) {
         return;
     }
 
-    const partOpts = parts.map(p => ({
-        val:   p.identifier,
-        label: `Part ${p.identifier}${p.label_description ? ' — ' + truncate(p.label_description, 45) : ''}`
-    }));
-    // Default to Part 50 if available (Title 10 default), otherwise first part
-    const preferredPart = partOpts.find(p => p.val === DEFAULT_PART) ? DEFAULT_PART : partOpts[0].val;
+    const partOpts = parts.map(p => {
+        const desc = cleanLabel(p.label_description);
+        return {
+            val:   p.identifier,
+            label: `Part ${p.identifier}${desc ? ' — ' + truncate(desc) : ''}`
+        };
+    });
+    // Caller's part if it exists here, else Part 50 (Title 10 default), else the first.
+    // Selecting it before the cascade below keeps onPartChange from narrowing the
+    // date list to a different part and reloading the structure underneath us.
+    const preferredPart = partOpts.some(p => p.val === String(preferPart)) ? String(preferPart)
+                        : partOpts.some(p => p.val === DEFAULT_PART)       ? DEFAULT_PART
+                        : partOpts[0].val;
     selSet(partSel, partOpts, preferredPart);
     selSpinner(`${prefix}-part`, false);
 
@@ -368,19 +387,42 @@ function onPartChange(mode) {
     selSpinner(`${prefix}-section`, true);
     resetSelect(sectionSel, '— loading sections… —');
 
-    const partNode = findNode(structure, partNum, 'part');
-    const sections = partNode ? extractNodes(partNode, 'section') : [];
+    const partNode   = findNode(structure, partNum, 'part');
+    const sections   = partNode ? extractNodes(partNode, 'section')  : [];
+    const appendices = partNode ? extractNodes(partNode, 'appendix') : [];
 
-    if (sections.length === 0) {
+    if (sections.length === 0 && appendices.length === 0) {
         resetSelect(sectionSel, '— no sections found —');
         selSpinner(`${prefix}-section`, false);
         return;
     }
 
-    const sectionOpts = sections.map(s => ({
-        val:   s.identifier,
-        label: `§ ${s.identifier}${s.label_description ? ' — ' + truncate(s.label_description, 42) : ''}`
-    }));
+    const sectionOpts = sections.map(s => {
+        const desc = cleanLabel(s.label_description);
+        return {
+            val:   s.identifier,
+            label: `§ ${s.identifier}${desc ? ' — ' + truncate(desc) : ''}`
+        };
+    });
+
+    if (appendices.length > 0) {
+        sectionOpts.push({ val: '', label: '— Appendices —', disabled: true });
+        appendices.forEach(a => {
+            const shortLabel = appendixShortLabel(a);
+            const desc = cleanLabel(a.label_description || a.label);
+            // Reserved appendices carry no description and their label just
+            // restates the designator — strip it instead of repeating it.
+            const shortDesc = cleanLabel(a.label_description)
+                || desc.replace(cleanLabel(a.label_level || a.identifier), '').replace(/^[—–\s]+/, '');
+            sectionOpts.push({
+                val:   `app::${a.identifier}::${partNum}::${desc}`,
+                // Cap the whole entry: appendix designators are long enough on their
+                // own that a 35-char description would still widen the dropdown.
+                label: truncate(`${shortLabel}${shortDesc ? ' — ' + shortDesc : ''}`)
+            });
+        });
+    }
+
     selSet(sectionSel, sectionOpts, sectionOpts[0].val);
     selSpinner(`${prefix}-section`, false);
 }
@@ -420,8 +462,32 @@ function resetSelect(id, placeholder) {
     sel.disabled  = true;
 }
 
-function truncate(str, max) {
-    return str && str.length > max ? str.slice(0, max) + '…' : str;
+function truncate(str, max = DROPDOWN_LABEL_MAX) {
+    return str && str.length > max ? str.slice(0, max).trimEnd() + '...' : str;
+}
+
+// Structure labels arrive with inline markup and embedded newlines, e.g.
+// "Assigned Protection Factors for Respirators\n<sup>a</sup>\n"
+function cleanLabel(str) {
+    return (str || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Subject-group nodes have no citation number: the API fills `identifier` with a
+// generated key ("ECFR092dafdfbddb968") or repeats the heading text itself.
+function hasCitationNumber(node) {
+    const id = (node.identifier || '').trim();
+    if (!id || /^ECFR[0-9a-f]+$/i.test(id)) return false;
+    return id !== cleanLabel(node.label_description || node.label);
+}
+
+// Appendix headings are full sentences — "Appendix A to Subpart B of Part 430—
+// Uniform Test Method for…". Reduce to a compact designator: "App. A" or,
+// when the part has per-subpart appendices, "App. A (Subpt B)".
+function appendixShortLabel(node) {
+    const id      = cleanLabel(node.label_level || node.identifier || node.label).split(/[—–]/)[0];
+    const subpart = id.match(/Subpart\s+(\S+)/i);
+    const desig   = id.replace(/\s+to\s+.*$/i, '').replace(/^Appendix\s+/i, 'App. ').trim();
+    return subpart ? `${desig} (Subpt ${subpart[1]})` : desig;
 }
 
 // ── Version date helpers ──────────────────────────────────────────────────
@@ -534,16 +600,68 @@ function attachDateListeners() {
         updateDateDropdown('diff', titleNum, datesForSection(titleNum, sectionId, partNum));
     });
 
-    // Paragraph selector → show/hide para-blocks without re-fetching
-    document.getElementById('s-para')?.addEventListener('change', () => {
-        const pid = document.getElementById('s-para')?.value || 'all';
-        document.querySelectorAll('#results .para-block').forEach(el => {
-            if (pid === 'all') {
-                el.classList.remove('hidden');
-            } else {
-                el.classList.toggle('hidden', el.dataset.pid !== pid);
-            }
-        });
+}
+
+/** Show only the paragraph picked in the reading pane's filter. */
+function applyParaFilter() {
+    const pid = document.getElementById('s-para')?.value || 'all';
+    document.querySelectorAll('#results .para-block').forEach(el => {
+        el.classList.toggle('hidden', pid !== 'all' && el.dataset.pid !== pid);
+    });
+}
+
+// ── Delegated actions for generated markup ───────────────────────────────
+// Generated rows declare `data-action` plus their parameters as data-*
+// attributes instead of an inline onclick. The values stay plain strings the
+// browser hands back through `dataset` — they are never parsed as JavaScript,
+// so a quote, newline, or backslash in eCFR text cannot break a handler.
+const ACTIONS = {
+    'load-section':   d => loadSection(d.date, d.title, d.section),
+    'load-appendix':  d => loadAppendix(d.date, d.title, d.part, d.appendix, d.label),
+    'load-crossref':  d => loadCrossRef(d.title, d.section),
+    'browse-part':    d => browsePartStructure(d.title, d.part, d.date),
+    'compare-versions': d => compareVersionsFor(d.title, d.part, d.section, d.date),
+    'jump-ref':       d => jumpToReference(d.ref),
+    'restore-query':  d => restoreQuery(JSON.parse(d.entry)),
+    'delete-history': d => deleteHistoryItem(d.key),
+    'export-csv':     () => exportCitationsCSV(),
+    'export-section': () => exportSectionRTF(),
+    'export-diff':    () => exportDiffRTF(),
+};
+
+/** Render the data-* attributes for a delegated action. */
+function actionAttrs(action, params = {}) {
+    return Object.entries({ action, ...params })
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => ` data-${k}="${_attrEscape(v)}"`)
+        .join('');
+}
+
+function attachActionListeners() {
+    // One listener for the whole document: `closest` resolves to the innermost
+    // [data-action], so a delete button nested in a history row wins over the
+    // row itself without needing stopPropagation.
+    document.addEventListener('click', ev => {
+        const el = ev.target instanceof Element ? ev.target.closest('[data-action]') : null;
+        const fn = el && ACTIONS[el.dataset.action];
+        if (!fn) return;
+        fn(el.dataset, el, ev);
+    });
+
+    // The paragraph filter is rebuilt with every section render, so it is
+    // handled by delegation rather than a listener bound once at startup.
+    document.addEventListener('change', ev => {
+        if (ev.target instanceof Element && ev.target.id === 's-para') applyParaFilter();
+    });
+
+    // Keyboard equivalent for the div-based rows. Native buttons already emit a
+    // click on Enter/Space, so activating them here would fire twice.
+    document.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        const el = ev.target instanceof Element ? ev.target.closest('[data-action]') : null;
+        if (!el || el.tagName === 'BUTTON' || !ACTIONS[el.dataset.action]) return;
+        ev.preventDefault();
+        el.click();
     });
 }
 
@@ -572,12 +690,12 @@ function renderHistory() {
     const h = loadHistory();
     if (!h.length) { list.innerHTML = '<div class="history-empty">No searches yet</div>'; return; }
     list.innerHTML = h.map(e => `
-        <div class="history-item" role="button" tabindex="0" aria-label="Reload ${e.label}" onclick='restoreQuery(${JSON.stringify(e)})' onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+        <div class="history-item" role="button" tabindex="0" aria-label="Reload ${_attrEscape(e.label)}"${actionAttrs('restore-query', { entry: JSON.stringify(e) })}>
             <div class="history-item-text">
                 <div class="history-item-title">${e.label}</div>
                 <div class="history-item-date">${e.ts}</div>
             </div>
-            <button class="history-delete" onclick="event.stopPropagation();deleteHistoryItem('${e.key.replace(/'/g,"\\'")}')" title="Remove" aria-label="Remove ${e.label} from history">×</button>
+            <button class="history-delete"${actionAttrs('delete-history', { key: e.key })} title="Remove" aria-label="Remove ${_attrEscape(e.label)} from history">×</button>
         </div>`).join('');
 }
 function restoreQuery(entry) {
@@ -607,6 +725,13 @@ async function fetchECFRXML(date, title, section) {
     return res.text();
 }
 
+async function fetchAppendixXML(date, title, appendixId) {
+    const url = `${ECFR_BASE}/full/${date}/title-${title}.xml?appendix=${encodeURIComponent(appendixId)}`;
+    const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/xml' } });
+    if (!res.ok) throw new Error(`eCFR API HTTP ${res.status} — ${appendixId} on ${date}`);
+    return res.text();
+}
+
 // ── FR PDF Fetch (bug-fixed) ──────────────────────────────────────────────
 async function fetchFRPDFs(citations) {
     if (!citations?.length) return [];
@@ -629,8 +754,13 @@ async function runQuery() {
     const title   = document.getElementById('s-title')?.value;
     const date    = document.getElementById('s-date')?.value;
     const section = document.getElementById('s-section')?.value;
-    if (!title || !date || !section || section.startsWith('—')) {
+    if (!title || !date || !section || section.startsWith('—') || !section) {
         showError('Please wait for all dropdowns to finish loading, then select a section.'); return;
+    }
+    if (section.startsWith('app::')) {
+        const [, appendixId, part, ...labelParts] = section.split('::');
+        await loadAppendix(date, title, part, appendixId, labelParts.join('::'));
+        return;
     }
     await runQueryWith(title, date, section);
 }
@@ -639,10 +769,6 @@ async function runQueryWith(title, date, section) {
     showError(null);
     showLoading(true);
     resetSearch();
-    // Reset paragraph selector while new data loads
-    const _pg = document.getElementById('s-para-group');
-    if (_pg) _pg.style.display = 'none';
-    selSet('s-para', [{ val: 'all', label: '— All paragraphs —' }], 'all');
     document.getElementById('results').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><span>Fetching eCFR data…</span></div>';
     try {
         const xmlText  = await fetchECFRXML(date, title, section);
@@ -838,11 +964,39 @@ function _extractStandardsFromText(text) {
     return [...found].sort((a, b) => a.localeCompare(b));
 }
 
-function renderSection({ head, cita, citations, pEls, frResults, date, title, section }) {
+function renderSection({ head, cita, citations, pEls, frResults, date, title, section,
+                          isAppendix = false, appendixLabel = '', part: rawPart = '' }) {
     const paraInfos = buildParaPaths(pEls);
-    _lastSection = { head, cita, citations, pEls, paraInfos, frResults, date, title, section };
+    _lastSection = { head, cita, citations, pEls, paraInfos, frResults, date, title, section,
+                     isAppendix, appendixLabel, rawPart };
 
     let html = '';
+
+    // Shortcuts into the other two views for whatever is being read, plus the
+    // paragraph filter. Appendices are omitted from Compare: the diff API is
+    // addressed by section number.
+    const partNum = partOfSection(section, rawPart);
+    // Full hierarchy paths — (a), (a)(1), (a)(1)(i) — in document order, deduplicated
+    const designators = [...new Set(paraInfos.map(pi => pi.path).filter(Boolean))];
+    if (partNum || designators.length) {
+        html += `<div class="section-actions">
+            ${!partNum ? '' : `<button type="button" class="section-action-btn"${actionAttrs('browse-part', { title, part: partNum, date })}>
+                ⊞ Browse Part Structure</button>`}
+            ${!partNum || isAppendix ? '' : `<button type="button" class="section-action-btn"${actionAttrs('compare-versions', { title, part: partNum, section, date })}>
+                ⇄ Compare Versions</button>`}
+            ${!designators.length ? '' : `<div class="para-filter">
+                <label class="para-filter-label" for="s-para">Paragraph</label>
+                <div class="select-wrap">
+                    <select id="s-para" title="Show a single paragraph of this section">
+                        <option value="all">— All paragraphs —</option>
+                        ${designators.map(d => `<option value="${_attrEscape(d)}">${d}</option>`).join('')}
+                    </select>
+                </div>
+            </div>`}
+            ${!partNum ? '' : `<span class="section-actions-context">Part ${partNum} · ${date}</span>`}
+        </div>`;
+    }
+
     if (cita) {
         const frLinks  = citations.map(c => `<a class="fr-link" href="https://www.federalregister.gov/citation/${c.replaceAll(' ','-')}" target="_blank" rel="noopener noreferrer">↗ ${c}<span class="sr-only"> (opens in new tab)</span></a>`).join('');
         const pdfLinks = frResults.filter(r => r.pdf_url).map(r =>
@@ -851,7 +1005,7 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
                 PDF ${r.citation}<span class="sr-only"> (opens in new tab)</span>
             </a>`).join('');
         html += `<div class="result-card">
-            <div class="result-card-header"><h3 class="result-card-title">Citations</h3><button class="copy-btn export-csv-btn" onclick="exportCitationsCSV()">Export CSV</button></div>
+            <div class="result-card-header"><h3 class="result-card-title">Citations</h3><button class="copy-btn export-csv-btn"${actionAttrs('export-csv')}>Export CSV</button></div>
             <div class="result-card-body">
                 <div class="citation-text">${cita}</div>
                 ${frLinks  ? `<div class="link-row">${frLinks}</div>`  : ''}
@@ -863,12 +1017,11 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         const xrefs = extractCrossRefs(pEls, title, section);
         const chips = xrefs.length
             ? xrefs.map(r => {
-                const jumpBtn = `<button class="xref-jump" onclick="jumpToReference('${_jsEscape(r.raw)}')" title="Jump to this reference in the text" aria-label="Jump to ${r.label} in the text">⌖</button>`;
+                const jumpBtn = `<button class="xref-jump"${actionAttrs('jump-ref', { ref: r.raw })} title="Jump to this reference in the text" aria-label="Jump to ${_attrEscape(r.label)} in the text">⌖</button>`;
                 if (r.type === 'section') {
-                    return `<button type="button" class="xref-chip" onclick="loadCrossRef('${r.title}','${r.section}')" title="Load ${r.label}">${r.label}</button>${jumpBtn}`;
+                    return `<button type="button" class="xref-chip"${actionAttrs('load-crossref', { title: r.title, section: r.section })} title="Load ${_attrEscape(r.label)}">${r.label}</button>${jumpBtn}`;
                 }
-                const href = `https://www.ecfr.gov/current/title-${r.title}/part-${r.part}`;
-                return `<a class="xref-chip xref-part" href="${href}" target="_blank" rel="noopener noreferrer" title="View on eCFR.gov">${r.label} ↗<span class="sr-only"> (opens in new tab)</span></a>${jumpBtn}`;
+                return `<button type="button" class="xref-chip xref-part"${actionAttrs('browse-part', { title: r.title, part: r.part, date })} title="Browse Part ${r.part} structure">${r.label}</button>${jumpBtn}`;
             }).join('')
             : '<span class="xref-empty">No cross-references detected in this section.</span>';
         html += `<div class="result-card">
@@ -878,16 +1031,21 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         // Referenced Codes & Standards card (e.g. ASME, IEEE, ANSI)
         const standards = extractStandards(pEls);
         const stdChips = standards.length
-            ? standards.map(s => `<button type="button" class="standard-chip" onclick="jumpToReference('${_jsEscape(s)}')" title="Jump to this reference in the text">${s}</button>`).join('')
+            ? standards.map(s => `<button type="button" class="standard-chip"${actionAttrs('jump-ref', { ref: s })} title="Jump to this reference in the text">${s}</button>`).join('')
             : '<span class="xref-empty">No external codes or standards detected in this section.</span>';
         html += `<div class="result-card">
             <div class="result-card-header"><h3 class="result-card-title">Regulatory Guidance and Referenced Codes and Standards</h3></div>
             <div class="result-card-body"><div class="xref-list">${stdChips}</div></div></div>`;
     }
 
+    const sectionCardTitle = isAppendix
+        ? `Appendix — ${title} CFR Part ${rawPart} · ${appendixLabel || section}`
+        : `Section — ${title} CFR §${section}`;
+    const textCardTitle = isAppendix ? `Appendix Text — ${date}` : `Section Text — ${date}`;
+
     if (head) {
         html += `<div class="result-card">
-            <div class="result-card-header"><h3 class="result-card-title">Section — ${title} CFR §${section}</h3></div>
+            <div class="result-card-header"><h3 class="result-card-title">${sectionCardTitle}</h3></div>
             <div class="result-card-body"><div class="section-heading">${head}</div></div></div>`;
     }
     if (pEls.length > 0) {
@@ -905,30 +1063,20 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         }).join('');
 
         html += `<div class="result-card">
-            <div class="result-card-header"><h3 class="result-card-title">Section Text — ${date}</h3><button class="copy-btn export-word-btn" onclick="exportSectionRTF()">Export Word</button></div>
+            <div class="result-card-header"><h3 class="result-card-title">${textCardTitle}</h3><button class="copy-btn export-word-btn"${actionAttrs('export-section')}>Export Word</button></div>
             <div class="result-card-body"><div id="paraBody">${paraHtml}</div></div></div>`;
     }
     if (!html) html = '<div class="results-placeholder"><p>No content found. Try a different date or section.</p></div>';
     document.getElementById('results').innerHTML = html;
-
-    // Populate the paragraph selector with designators found in this section
-    const paraGroup = document.getElementById('s-para-group');
-    const paraSel   = document.getElementById('s-para');
-    // Full hierarchy paths, in document order, deduplicated
-    const designators = [...new Set(paraInfos.map(pi => pi.path).filter(Boolean))];
-    if (designators.length && paraGroup && paraSel) {
-        selSet('s-para',
-            [{ val: 'all', label: '— All paragraphs —' },
-             ...designators.map(d => ({ val: d, label: d }))],
-            'all'
-        );
-        paraGroup.style.display = '';
-    } else if (paraGroup) {
-        paraGroup.style.display = 'none';
-    }
 }
 
 // ── Part Browser ──────────────────────────────────────────────────────────
+/** Fallback out to eCFR.gov for a part this tool could not render. */
+function ecfrPartLink(title, part) {
+    if (!title || !part) return '';
+    return `<a class="error-link" href="https://www.ecfr.gov/current/title-${encodeURIComponent(title)}/part-${encodeURIComponent(part)}" target="_blank" rel="noopener noreferrer">View Part ${part} on eCFR.gov ↗<span class="sr-only"> (opens in new tab)</span></a>`;
+}
+
 async function runPartBrowse() {
     const title = document.getElementById('p-title')?.value;
     const date  = document.getElementById('p-date')?.value;
@@ -951,11 +1099,16 @@ async function runPartBrowseWith(title, date, part) {
             structureCache[cacheKey] = await res.json();
         }
         const partNode = findNode(structureCache[cacheKey], part, 'part');
-        if (!partNode) throw new Error(`Part ${part} not found in Title ${title} on ${date}.`);
+        if (!partNode) {
+            // Nothing to render here — point at the authoritative copy instead.
+            showError(`Part ${part} is not in Title ${title}'s structure for ${date}. ${ecfrPartLink(title, part)}`);
+            document.getElementById('results').innerHTML = '';
+            return;
+        }
         renderPartBrowser(partNode, date, title, part);
         saveToHistory({ mode:'part', key:`part-${title}-${part}-${date}`, label:`Title ${title} Part ${part} (${date})`, title, date, part });
     } catch (err) {
-        showError(err.message);
+        showError(`${err.message}${/[.!?]$/.test(err.message) ? '' : '.'} ${ecfrPartLink(title, part)}`);
         document.getElementById('results').innerHTML = '';
     } finally { showLoading(false); }
 }
@@ -965,15 +1118,36 @@ function renderPartBrowser(partNode, date, title, part) {
     function walk(node, depth) {
         if (!node.children) return;
         for (const child of node.children) {
-            const isSection = child.type === 'section';
+            const isSection  = child.type === 'section';
+            const isAppendix = child.type === 'appendix';
             const ml = depth * 18;
-            const clickAttr = isSection
-                ? `onclick="loadSection('${date}','${title}','${child.identifier}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" role="button" tabindex="0" aria-label="Load section ${child.identifier}: ${child.label_description || child.label || ''}" style="margin-left:${ml}px;cursor:pointer"`
-                : `style="margin-left:${ml}px;cursor:default;opacity:0.7"`;
-            rows += `<div class="part-item" ${clickAttr}>
-                <span class="part-num">${child.identifier || ''}</span>
+            // Labels arrive with markup and trailing newlines — clean them before
+            // they reach an attribute, a heading, or the appendix loader.
+            const desc = cleanLabel(child.label_description || child.label);
+            const id   = cleanLabel(child.identifier);
+
+            let clickAttr;
+            if (isSection) {
+                clickAttr = `${actionAttrs('load-section', { date, title, section: id })} role="button" tabindex="0" aria-label="Load section ${_attrEscape(id)}: ${_attrEscape(desc)}" style="margin-left:${ml}px;cursor:pointer"`;
+            } else if (isAppendix) {
+                clickAttr = `${actionAttrs('load-appendix', { date, title, part, appendix: id, label: desc })} role="button" tabindex="0" aria-label="Load ${_attrEscape(desc || id)}" style="margin-left:${ml}px;cursor:pointer"`;
+            } else {
+                clickAttr = `style="margin-left:${ml}px;cursor:default;opacity:0.7"`;
+            }
+
+            // Short display identifier: for appendices derive "App. A" from the label
+            const numLabel = isSection  ? (child.identifier || '')
+                           : isAppendix ? appendixShortLabel(child)
+                           : (child.identifier || '');
+
+            // Subject groups carry a generated identifier instead of a citation
+            // number — render them as a plain heading rather than showing it.
+            const showNum = isSection || isAppendix || hasCitationNumber(child);
+
+            rows += `<div class="part-item${isAppendix ? ' part-item-appendix' : ''}${showNum ? '' : ' part-item-group'}" ${clickAttr}>
+                ${showNum ? `<span class="part-num">${numLabel}</span>` : ''}
                 <span class="part-desc">${child.label_description || child.label || ''}</span>
-                ${isSection ? '<span class="part-load">→ load</span>' : ''}
+                ${(isSection || isAppendix) ? '<span class="part-load">→ load</span>' : ''}
             </div>`;
             if (child.children) walk(child, depth + 1);
         }
@@ -988,6 +1162,84 @@ function renderPartBrowser(partNode, date, title, part) {
         </div></div>`;
 }
 
+// ── Reading-pane shortcuts into the Part and Diff views ──────────────────
+/** "50.34" → "50". Appendices have no such number, so they carry their part along. */
+function partOfSection(section, fallback = '') {
+    const m = /^([\dA-Za-z]+)\./.exec(String(section || ''));
+    return m ? m[1] : String(fallback || '');
+}
+
+/** Set a select to `value` if that option exists. Returns whether it did. */
+function selectIfPresent(id, value) {
+    const sel = document.getElementById(id);
+    if (!sel || value === undefined || value === null || value === '') return false;
+    const v = String(value);
+    if (!Array.from(sel.options).some(o => o.value === v)) return false;
+    sel.value = v;
+    return true;
+}
+
+/**
+ * Switch modes with the controls pointed at a specific title/part/section
+ * instead of the mode defaults. Returns the date the controls settled on.
+ */
+async function openInMode(mode, { title, part, section, date }) {
+    const prefix = { section: 's', part: 'p', diff: 'd' }[mode];
+    await setMode(mode, false);
+    if (!titlesData.length) return date;
+
+    selectIfPresent(`${prefix}-title`, title);
+    const versions = await fetchVersions(title, prefix);
+    if (!versions?.length) return date;
+
+    // Date list for this part, newest first, keeping the date being read when
+    // that part was actually amended on it.
+    const dates    = part ? datesForPart(title, part) : extractDates(versions);
+    const snapshot = dates.includes(String(date)) ? String(date) : dates[0];
+
+    // Populate dates before the structure loads so the cascade sees the date it
+    // will end up with and has no reason to swap it and reload.
+    updateDateDropdown(mode, title, dates);
+    if (mode === 'diff') selectIfPresent('d-dateB', snapshot);
+    else                 selectIfPresent(`${prefix}-date`, snapshot);
+
+    await loadStructure(title, snapshot, mode, part);   // parts → sections for `part`
+
+    if (mode !== 'part' && selectIfPresent(`${prefix}-section`, section)) {
+        // Narrows the date list to this section's own amendment history.
+        document.getElementById(`${prefix}-section`).dispatchEvent(new Event('change'));
+    }
+
+    if (mode === 'diff') {
+        // Default to the version being read against its neighbour: the one before
+        // it, or — when reading the oldest version — the one after it.
+        const bSel = document.getElementById('d-dateB');
+        const aSel = document.getElementById('d-dateA');
+        const opts = Array.from(bSel?.options || []).map(o => o.value);  // newest first
+        const i    = opts.indexOf(snapshot);
+        if (i !== -1 && i + 1 < opts.length) { bSel.value = opts[i];     aSel.value = opts[i + 1]; }
+        else if (i > 0)                      { bSel.value = opts[i - 1]; aSel.value = opts[i];     }
+        return bSel?.value || snapshot;
+    }
+    return document.getElementById(`${prefix}-date`)?.value || snapshot;
+}
+
+async function browsePartStructure(title, part, date) {
+    if (!part) { showError('No part number could be derived for this section.'); return; }
+    const settled = await openInMode('part', { title, part, date });
+    await runPartBrowseWith(title, settled, part);
+}
+
+async function compareVersionsFor(title, part, section, date) {
+    await openInMode('diff', { title, part, section, date });
+    const a = document.getElementById('d-dateA')?.value;
+    const b = document.getElementById('d-dateB')?.value;
+    if (a && b && a === b) showToast(`Only one version of §${section} is available to compare`);
+    else showToast(a && b
+        ? `§${section} loaded — press Compare Versions for ${a} vs ${b}`
+        : `§${section} loaded into Compare — pick two dates`);
+}
+
 function loadSection(date, title, section) {
     setMode('section');
     // Update selects to match restored values, then fetch
@@ -995,6 +1247,31 @@ function loadSection(date, title, section) {
     if (tSel) tSel.value = title;
     // Fetch directly — structure already cached
     runQueryWith(title, date, section);
+}
+
+async function loadAppendix(date, title, part, appendixId, appendixLabel) {
+    setMode('section');
+    showError(null);
+    showLoading(true);
+    resetSearch();
+    document.getElementById('results').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><span>Fetching appendix…</span></div>';
+    try {
+        const xmlText = await fetchAppendixXML(date, title, appendixId);
+        const xmlDoc  = new DOMParser().parseFromString(xmlText, 'application/xml');
+        // Appendix XML uses <HD SOURCE="HED"> for its title; fall back to <HEAD> or the label
+        const head = extractTagText(xmlText, 'HEAD')
+            || (xmlDoc.querySelector('HD') ? xmlDoc.querySelector('HD').textContent.trim() : null)
+            || appendixLabel;
+        const pEls = xmlDoc.getElementsByTagName('P');
+        renderSection({ head, cita: null, citations: [], pEls, frResults: [], date, title,
+                        section: appendixId, isAppendix: true, appendixLabel, part });
+        saveToHistory({ mode: 'section', key: `app-${title}-${appendixId}-${date}`,
+                        label: `Title ${title} ${appendixLabel || appendixId} (${date})`,
+                        title, date, section: appendixId });
+    } catch (err) {
+        showError(err.message);
+        document.getElementById('results').innerHTML = '';
+    } finally { showLoading(false); }
 }
 
 // ── Diff View ─────────────────────────────────────────────────────────────
@@ -1066,7 +1343,7 @@ function renderDiff({textA,textB,headA,headB,citaA,citaB,dateA,dateB,title,secti
            <div class="diff-cita-detail"><b>${dateB}:</b> ${citaB||'(none)'}</div>`;
     document.getElementById('results').innerHTML = `
     <div class="result-card">
-        <div class="result-card-header"><h3 class="result-card-title">Title ${title} §${section} — Version Comparison</h3><button class="copy-btn export-word-btn" onclick="exportDiffRTF()">Export Word</button></div>
+        <div class="result-card-header"><h3 class="result-card-title">Title ${title} §${section} — Version Comparison</h3><button class="copy-btn export-word-btn"${actionAttrs('export-diff')}>Export Word</button></div>
         <div class="result-card-body">
             <div class="diff-stats">
                 <span class="stat-add">+${adds} added</span>
@@ -1145,9 +1422,13 @@ function _applySearch(query) {
     _highlightInScope(_escRe(query));
 }
 
-/** Escape a string for safe embedding inside a single-quoted JS string literal in an onclick attribute. */
-function _jsEscape(s) {
-    return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+/** Escape a string for safe embedding inside a double-quoted HTML attribute. */
+function _attrEscape(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 /**
@@ -1241,6 +1522,7 @@ function _updateSearchUI(total, current) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
+attachActionListeners();
 renderHistory();
 attachDateListeners();
 loadTitles();

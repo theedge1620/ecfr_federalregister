@@ -250,7 +250,7 @@ label {
 }
 
 /* ── Select Wrapper ──────────────────────────────────────────────────────  */
-.select-wrap { position: relative; display: flex; align-items: center; }
+.select-wrap { position: relative; display: flex; align-items: center; overflow: hidden; }
 .select-wrap::after {
     content: '▾';
     position: absolute;
@@ -263,6 +263,7 @@ label {
 
 select {
     width: 100%;
+    min-width: 0;
     appearance: none;
     -webkit-appearance: none;
     background: var(--surface);
@@ -423,6 +424,13 @@ select option { background: #ffffff; color: var(--text); }
 }
 .error-banner.active { display: block; }
 .error-icon { margin-right: 6px; }
+/* Fallback link offered when content cannot be rendered in-app */
+.error-link {
+    display: inline-block; margin-left: 4px;
+    color: var(--red); font-weight: 600; text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.error-link:hover { color: var(--accent); }
 
 /* ── Placeholder ─────────────────────────────────────────────────────────  */
 .results-placeholder {
@@ -441,6 +449,39 @@ select option { background: #ffffff; color: var(--text); }
 }
 
 /* ── Result Cards ────────────────────────────────────────────────────────  */
+/* Shortcut bar above the Citations card in the reading pane */
+.section-actions {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+}
+.section-action-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 13px; border-radius: 6px;
+    border: 1px solid var(--accent-mid);
+    background: var(--surface); color: var(--accent);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.section-action-btn:hover  { background: var(--accent-dim); border-color: var(--accent); }
+.section-action-btn:active { transform: scale(0.985); }
+.section-actions-context {
+    margin-left: auto;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);
+}
+
+/* Paragraph filter, sitting inline with the shortcut buttons */
+.para-filter { display: inline-flex; align-items: center; gap: 7px; }
+.para-filter-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
+}
+.para-filter select {
+    width: auto; min-width: 165px;
+    padding: 6px 26px 6px 9px; font-size: 11px;
+}
+
 .result-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -596,9 +637,34 @@ select option { background: #ffffff; color: var(--text); }
     border-radius: 5px; transition: all 0.15s;
 }
 .part-item:hover { border-color: var(--accent); background: var(--accent-dim); }
-.part-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); flex-shrink: 0; min-width: 42px; }
+.part-item:hover .part-load { color: var(--accent); font-weight: 700; }
+.part-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); flex-shrink: 0; min-width: 52px; }
 .part-desc { font-size: 12px; color: var(--text-muted); flex: 1; line-height: 1.4; }
 .part-load { font-size: 10px; color: var(--text-dim); flex-shrink: 0; margin-left: auto; }
+
+/* Appendix rows in the part browser */
+.part-item-appendix {
+    border-left: 3px solid var(--amber-border);
+    background: var(--amber-bg);
+}
+.part-item-appendix .part-num { color: var(--amber); }
+.part-item-appendix:hover { border-left-color: var(--amber); border-color: var(--amber-border); background: #fde9b8; }
+
+/* Subject-group rows: headings only, no citation number to show */
+.part-item-group,
+.part-item-group:hover {
+    background: transparent;
+    border: none;
+    border-left: 2px solid var(--border);
+    border-radius: 0;
+    padding: 4px 0 4px 10px;
+}
+.part-item-group .part-desc {
+    font-family: var(--font-mono);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
 .part-item:hover .part-load { color: var(--accent); font-weight: 700; }
 
 /* ── Diff View ───────────────────────────────────────────────────────────  */
