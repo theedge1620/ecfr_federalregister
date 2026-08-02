@@ -1,4 +1,4 @@
-# eCFR Citation Retriever
+# eCFR Reviewer and Citation Retriever
 
 A single-page tool for reading the Code of Federal Regulations, tracing each section back to
 its Federal Register citations, and comparing how a section changed between two dates. It runs
@@ -47,7 +47,7 @@ Outbound links go to `federalregister.gov/citation/…` for FR citations, and to
 | --- | --- |
 | **Section** | Fetches one section's text, its `CITA` line, the FR citations parsed out of it, matching FR PDFs, cross-references, and referenced industry standards |
 | **Part** | Renders a part's full structure as a clickable tree — every section and appendix loads into Section mode on click |
-| **Diff** | Fetches one section at two dates and renders a word-level, side-by-side comparison with add/remove/unchanged counts |
+| **Diff** | Fetches one section *or appendix* at two dates and renders a word-level, side-by-side comparison with add/remove/unchanged counts |
 
 ## How it works
 
@@ -173,6 +173,18 @@ the date falls back to that part's latest when the current date does not apply.
 for that date, or a structure API error — the error banner carries a link to the part on
 eCFR.gov. This lives in `runPartBrowseWith()`, so every route into the part browser benefits.
 
+**Appendix diffing.** The Diff tab now compares appendices as well as sections. The section
+dropdowns encode appendices as `app::{identifier}::{part}::{label}`, which is decoded in one
+place (`parseTarget`) and routed to the `?appendix=` endpoint; headings fall back to the
+appendix XML's `<HD>` element, and card titles, history labels, and export filenames all name
+the appendix rather than printing `§Appendix A to Part 50`. The reading pane's **Compare
+Versions** button now appears for appendices too.
+
+Two supporting changes: a failed fetch is reported as *"{target} has no published text on
+{date}"* rather than a bare HTTP status, since a 404 here means the target did not exist on that
+date; and version records flagged `removed: true` — the date something ceased to exist, 93 of
+them in Title 10 — are filtered out of the date picker, because selecting one guarantees a 404.
+
 **Paragraph filter moved into the reading pane.** It now sits inline with the two shortcut
 buttons instead of in the sidebar, and appears only for sections that actually have paragraph
 designators. Because it is rebuilt on every render, its `change` handler is delegated rather
@@ -193,9 +205,11 @@ than the live API. Not wired into the main app.
 
 ## Notes and limitations
 
-- **Diffing appendices is not supported.** The diff path fetches by `section=`, which an appendix
-  identifier is not valid for. Appendices still appear in the Diff tab's own section dropdown and
-  will fail there — a pre-existing gap, not yet addressed.
+- **Appendix availability varies by date.** An appendix can only be fetched on dates where it
+  existed under that identifier; the API returns 404 otherwise, and the tool reports which date
+  failed. Version records marked `removed: true` are filtered out of the date picker, but an
+  appendix with no version records at all falls back to its part's dates, some of which may
+  predate it.
 - **Cross-reference and standards detection is regex-based** over the section text
   (`extractCrossRefs`, `_extractStandardsFromText`, with a fixed list of 27 standards bodies in
   `_STD_ORGS`). It is deliberately generous and can miss unusual phrasings.

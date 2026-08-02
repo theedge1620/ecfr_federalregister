@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  eCFR Citation Retriever — script.js  v2.3 (light)
+//  eCFR Reviewer and Citation Retriever — script.js  v2.3 (light)
 //  Cascading live dropdowns: Titles → Dates → Parts → Sections from eCFR API
 //  Default: Title 10, Part 50, latest date — auto-cascades on load
 // ══════════════════════════════════════════════════════════════════════════
@@ -508,7 +508,11 @@ function datesForPart(titleNum, partNum) {
 
 function datesForSection(titleNum, sectionId, partNum) {
     const all      = versionsRaw[titleNum] || [];
-    const filtered = all.filter(v => String(v.identifier) === String(sectionId));
+    // Appendices arrive as "app::{identifier}::…"; the API records them under the
+    // bare identifier, so decode before matching. `removed: true` marks the date
+    // the target ceased to exist — there is no text to fetch on that date.
+    const id       = parseTarget(sectionId).id;
+    const filtered = all.filter(v => String(v.identifier) === id && v.removed !== true);
     if (filtered.length) return extractDates(filtered);
     if (partNum) {
         const byPart = all.filter(v => String(v.part) === String(partNum));
@@ -757,9 +761,9 @@ async function runQuery() {
     if (!title || !date || !section || section.startsWith('—') || !section) {
         showError('Please wait for all dropdowns to finish loading, then select a section.'); return;
     }
-    if (section.startsWith('app::')) {
-        const [, appendixId, part, ...labelParts] = section.split('::');
-        await loadAppendix(date, title, part, appendixId, labelParts.join('::'));
+    const target = parseTarget(section);
+    if (target.isAppendix) {
+        await loadAppendix(date, title, target.part, target.id, target.label);
         return;
     }
     await runQueryWith(title, date, section);
@@ -859,7 +863,8 @@ function exportDiffRTF() {
         return '';
     }).join('');
 
-    const meta   = escRtf(`Title ${title} CFR §${section} — ${dateA} vs ${dateB} (Date B: ${dateB})`);
+    const target = parseTarget(section);
+    const meta   = escRtf(`Title ${title} CFR ${targetLabel(target)} — ${dateA} vs ${dateB}`);
     const head   = headB ? `\\pard\\sa180\\sl280\\slmult1\\b\\fs28 ${escRtf(headB)}\\b0\\par\\par\n` : '';
     const legend = `\\pard\\sa120\\sl240\\slmult1\\fs20\\i {\\cf1 Red strikethrough = removed (${dateA})}  {\\cf2 Green = added (${dateB})}\\i0\\par\\par\n`;
     const rtf = `{\\rtf1\\ansi\\ansicpg1252\\deff0\n` +
@@ -869,9 +874,10 @@ function exportDiffRTF() {
         `\\pard\\sa180\\sl280\\slmult1\\f0\\fs20\\i ${meta}\\i0\\par\\par\n` +
         `${head}${legend}` +
         `\\pard\\sa180\\sl280\\slmult1\\fs24 ${body}\\par\n}`;
+    const slug = (target.isAppendix ? target.id : `sec${target.id}`).replace(/[^\w.]+/g, '-');
     _triggerDownload(
         new Blob([rtf], { type: 'application/rtf' }),
-        `Diff-Title${title}-sec${section}-${dateA}-vs-${dateB}.rtf`
+        `Diff-Title${title}-${slug}-${dateA}-vs-${dateB}.rtf`
     );
 }
 
@@ -973,8 +979,7 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
     let html = '';
 
     // Shortcuts into the other two views for whatever is being read, plus the
-    // paragraph filter. Appendices are omitted from Compare: the diff API is
-    // addressed by section number.
+    // paragraph filter.
     const partNum = partOfSection(section, rawPart);
     // Full hierarchy paths — (a), (a)(1), (a)(1)(i) — in document order, deduplicated
     const designators = [...new Set(paraInfos.map(pi => pi.path).filter(Boolean))];
@@ -982,7 +987,7 @@ function renderSection({ head, cita, citations, pEls, frResults, date, title, se
         html += `<div class="section-actions">
             ${!partNum ? '' : `<button type="button" class="section-action-btn"${actionAttrs('browse-part', { title, part: partNum, date })}>
                 ⊞ Browse Part Structure</button>`}
-            ${!partNum || isAppendix ? '' : `<button type="button" class="section-action-btn"${actionAttrs('compare-versions', { title, part: partNum, section, date })}>
+            ${!partNum ? '' : `<button type="button" class="section-action-btn"${actionAttrs('compare-versions', { title, part: partNum, section, date })}>
                 ⇄ Compare Versions</button>`}
             ${!designators.length ? '' : `<div class="para-filter">
                 <label class="para-filter-label" for="s-para">Paragraph</label>
@@ -1162,11 +1167,43 @@ function renderPartBrowser(partNode, date, title, part) {
         </div></div>`;
 }
 
+// ── Section / appendix targets ───────────────────────────────────────────
+/**
+ * The Section dropdowns carry appendices as "app::{identifier}::{part}::{label}";
+ * everything else is a plain section number. Decoding is centralised here so the
+ * section and diff paths agree on what they were handed.
+ */
+function parseTarget(value) {
+    const v = String(value ?? '');
+    if (!v.startsWith('app::')) return { isAppendix: false, id: v, part: '', label: '' };
+    const [, id, part, ...labelParts] = v.split('::');
+    return { isAppendix: true, id: id || '', part: part || '', label: labelParts.join('::') };
+}
+
+/** How a target is named in headings, history, and errors. */
+function targetLabel(target) {
+    return target.isAppendix ? cleanLabel(target.id) : `§${target.id}`;
+}
+
 // ── Reading-pane shortcuts into the Part and Diff views ──────────────────
 /** "50.34" → "50". Appendices have no such number, so they carry their part along. */
 function partOfSection(section, fallback = '') {
     const m = /^([\dA-Za-z]+)\./.exec(String(section || ''));
     return m ? m[1] : String(fallback || '');
+}
+
+/**
+ * Select a section, accepting either the dropdown's own value or a bare
+ * appendix identifier (the form the reading pane carries).
+ */
+function selectSection(id, value) {
+    const sel = document.getElementById(id);
+    if (!sel || !value) return false;
+    const v   = String(value);
+    const opt = Array.from(sel.options).find(o => o.value === v || o.value.startsWith(`app::${v}::`));
+    if (!opt) return false;
+    sel.value = opt.value;
+    return true;
 }
 
 /** Set a select to `value` if that option exists. Returns whether it did. */
@@ -1205,7 +1242,7 @@ async function openInMode(mode, { title, part, section, date }) {
 
     await loadStructure(title, snapshot, mode, part);   // parts → sections for `part`
 
-    if (mode !== 'part' && selectIfPresent(`${prefix}-section`, section)) {
+    if (mode !== 'part' && selectSection(`${prefix}-section`, section)) {
         // Narrows the date list to this section's own amendment history.
         document.getElementById(`${prefix}-section`).dispatchEvent(new Event('change'));
     }
@@ -1232,12 +1269,14 @@ async function browsePartStructure(title, part, date) {
 
 async function compareVersionsFor(title, part, section, date) {
     await openInMode('diff', { title, part, section, date });
+    const chosen = document.getElementById('d-section')?.value || section;
+    const label  = targetLabel(parseTarget(chosen));
     const a = document.getElementById('d-dateA')?.value;
     const b = document.getElementById('d-dateB')?.value;
-    if (a && b && a === b) showToast(`Only one version of §${section} is available to compare`);
+    if (a && b && a === b) showToast(`Only one version of ${label} is available to compare`);
     else showToast(a && b
-        ? `§${section} loaded — press Compare Versions for ${a} vs ${b}`
-        : `§${section} loaded into Compare — pick two dates`);
+        ? `${label} loaded — press Compare Versions for ${a} vs ${b}`
+        : `${label} loaded into Compare — pick two dates`);
 }
 
 function loadSection(date, title, section) {
@@ -1292,12 +1331,35 @@ async function runDiff() {
 async function runDiffWith(title, dateA, dateB, section) {
     showError(null); showLoading(true);
     resetSearch();
-    document.getElementById('results').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><span>Fetching both versions…</span></div>';
+    const target = parseTarget(section);
+    const label  = targetLabel(target);
+    const what   = target.isAppendix ? 'appendix' : 'section';
+    document.getElementById('results').innerHTML = `<div class="spinner-wrap"><div class="spinner"></div><span>Fetching both ${what} versions…</span></div>`;
     try {
-        const [xmlA, xmlB] = await Promise.all([fetchECFRXML(dateA, title, section), fetchECFRXML(dateB, title, section)]);
+        const fetchXML = date => target.isAppendix
+            ? fetchAppendixXML(date, title, target.id)
+            : fetchECFRXML(date, title, target.id);
+
+        // Settled rather than all: a 404 means the target did not exist on that
+        // date, which is worth saying plainly instead of surfacing a status code.
+        const results = await Promise.allSettled([fetchXML(dateA), fetchXML(dateB)]);
+        const failed  = [[dateA, results[0]], [dateB, results[1]]].filter(([, r]) => r.status === 'rejected');
+        if (failed.length) {
+            const is404  = ([, r]) => /HTTP 404/.test(r.reason?.message || '');
+            const other  = failed.find(f => !is404(f));
+            if (other) throw other[1].reason;
+            throw new Error(`${label} has no published text on ${failed.map(([d]) => d).join(' or ')}. Choose dates when it existed.`);
+        }
+        const [xmlA, xmlB] = results.map(r => r.value);
+
         const parseText = xml => Array.from(new DOMParser().parseFromString(xml,'application/xml').getElementsByTagName('P')).map(p=>p.textContent).join('\n\n');
-        renderDiff({ textA:parseText(xmlA), textB:parseText(xmlB), headA:extractTagText(xmlA,'HEAD'), headB:extractTagText(xmlB,'HEAD'), citaA:extractTagText(xmlA,'CITA'), citaB:extractTagText(xmlB,'CITA'), dateA, dateB, title, section });
-        saveToHistory({ mode:'diff', key:`diff-${title}-${section}-${dateA}-${dateB}`, label:`Diff §${section}: ${dateA} vs ${dateB}`, title, dateA, dateB, section });
+        // Appendix XML titles itself with <HD SOURCE="HED"> rather than <HEAD>.
+        const headOf = xml => extractTagText(xml, 'HEAD')
+            || (target.isAppendix ? new DOMParser().parseFromString(xml,'application/xml').querySelector('HD')?.textContent.trim() : null)
+            || (target.isAppendix ? cleanLabel(target.label) : null);
+
+        renderDiff({ textA:parseText(xmlA), textB:parseText(xmlB), headA:headOf(xmlA), headB:headOf(xmlB), citaA:extractTagText(xmlA,'CITA'), citaB:extractTagText(xmlB,'CITA'), dateA, dateB, title, section });
+        saveToHistory({ mode:'diff', key:`diff-${title}-${section}-${dateA}-${dateB}`, label:`Diff ${label}: ${dateA} vs ${dateB}`, title, dateA, dateB, section });
     } catch (err) {
         showError(err.message);
         document.getElementById('results').innerHTML = '';
@@ -1343,7 +1405,7 @@ function renderDiff({textA,textB,headA,headB,citaA,citaB,dateA,dateB,title,secti
            <div class="diff-cita-detail"><b>${dateB}:</b> ${citaB||'(none)'}</div>`;
     document.getElementById('results').innerHTML = `
     <div class="result-card">
-        <div class="result-card-header"><h3 class="result-card-title">Title ${title} §${section} — Version Comparison</h3><button class="copy-btn export-word-btn"${actionAttrs('export-diff')}>Export Word</button></div>
+        <div class="result-card-header"><h3 class="result-card-title">Title ${title} ${targetLabel(parseTarget(section))} — Version Comparison</h3><button class="copy-btn export-word-btn"${actionAttrs('export-diff')}>Export Word</button></div>
         <div class="result-card-body">
             <div class="diff-stats">
                 <span class="stat-add">+${adds} added</span>
