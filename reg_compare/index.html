@@ -159,6 +159,7 @@
   .sec-badge { font-family: sans-serif; font-size: 0.68rem; font-weight: 600; border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; flex-shrink: 0; }
   .sec-badge.variants { background: var(--warn-bg); color: var(--warn); }
   .sec-badge.elision { background: var(--omit-bg); color: var(--omit-fg); font-family: var(--mono); letter-spacing: -0.05em; }
+  .sec-badge.forms { background: var(--accent-light); color: var(--accent); }
   .sec-badge.sim { background: var(--omit-bg); color: var(--omit-fg); font-family: var(--mono); }
   .sec-path { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; color: var(--accent); flex-shrink: 0; }
 
@@ -270,8 +271,10 @@
     Subsections are matched only within the same section — <code>§ 50.55a</code> <code>(b)(2)</code> is compared
     against <code>(b)(2)</code> of <code>§ 50.55a</code> alone, never across sections.
     A <code>* * *</code> marker means the text up to the next listed subsection is unchanged, so it is not compared.
-    Numbered <code>46.</code>-style amendment instructions are not regulation text; each is shown only on conflicts in the
-    section its own text references. Comparison ignores case, whitespace and smart-quote/dash styling; the redline is verbatim.
+    A numbered <code>46.</code>-style instruction precedes the section it names: where amendatory text follows the
+    section heading, that text is compared and the instruction is shown as context; where the instruction stands alone,
+    the instruction itself is compared, against other instructions only.
+    Comparison ignores case, whitespace and smart-quote/dash styling; the redline is verbatim.
     Files are read entirely in your browser — nothing is uploaded.
   </div>
 </footer>
@@ -1467,10 +1470,16 @@ const ELISION_RE      = /^\*(?:\s*\*){2,}\s*$/;
 // Section references inside instruction text: "§ 50.55a", "§§ 50.55a", "Section 50.55a"
 const SECTION_REF_RE  = /(?:§{1,2}|\bSections?\b|\bSecs?\.)\s*(\d+[A-Za-z]?(?:\.\d+[A-Za-z]*)*)/gi;
 
-function plausibleSectionNumber(number) {
-  return number.split('.').every(seg => {
+// `cited` means the number carried a "§" or "Section" prefix, which makes it
+// unambiguous — CFR subparts run to four digits (§ 20.1406, § 50.1201), so no
+// magnitude cap applies. Only bare dotted numbering ("3.2.1 Scope") needs the
+// guard, and only to reject decimal quantities such as "2.5 million".
+function plausibleSectionNumber(number, cited = false) {
+  const parts = number.split('.');
+  return parts.every(seg => {
     const n = Number(seg.replace(/[A-Za-z]/g, ''));
-    return !Number.isNaN(n) && n <= 999;
+    if (Number.isNaN(n)) return false;
+    return cited || n <= 999;
   });
 }
 
@@ -1481,7 +1490,7 @@ function instructionSectionRefs(text) {
   let m;
   while ((m = SECTION_REF_RE.exec(text)) !== null) {
     const number = m[1].replace(/\.+$/, '');
-    if (plausibleSectionNumber(number) && !refs.includes(number)) refs.push(number);
+    if (plausibleSectionNumber(number, true) && !refs.includes(number)) refs.push(number);
   }
   return refs;
 }
@@ -1546,14 +1555,49 @@ function resolvePath(tokens, stack) {
   return stack.slice(0, level).join('');
 }
 
+// Paragraph targets named inside an instruction:
+//   "revise paragraph (c)(2)"                → ["(c)(2)"]
+//   "revise paragraphs (a)(1) and (b)(2)"    → ["(a)(1)", "(b)(2)"]
+//   "revise paragraph (c)(2) and remove paragraph (c)(3)" → ["(c)(2)", "(c)(3)"]
+function instructionParaTargets(text) {
+  const targets = [];
+  const kw = /\bparagraphs?\b/gi;
+  let m;
+  while ((m = kw.exec(text)) !== null) {
+    let pos = m.index + m[0].length;
+    // Consume runs of "(x)" groups, allowing ", " / " and " / " or " between them.
+    for (;;) {
+      const sep = /^(?:\s*(?:,|and|or)?\s*)/i.exec(text.slice(pos));
+      const start = pos + (sep ? sep[0].length : 0);
+      const des = leadingDesignators(text.slice(start));
+      if (!des) break;
+      const path = des.tokens.map(t => `(${t})`).join('');
+      if (!targets.includes(path)) targets.push(path);
+      pos = start + path.length;
+    }
+  }
+  return targets;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Parse a document into comparable subsection units + its instructions
+// Parse a document into comparable units + its instructions
 // ─────────────────────────────────────────────────────────────────────────────
 //
+// Document order matters, and it tells us which of two forms an amendment takes:
+//
+//   Instruction-only — the instruction precedes the section it names and no
+//   heading or amendatory text follows. The instruction sentence *is* the whole
+//   amendment, so it becomes the comparable unit (kind: 'instruction'), keyed by
+//   the section and paragraph its own text names.
+//
+//   Detailed amendatory language — the instruction is followed by the section
+//   heading, and the replacement text comes after that heading. The regulation
+//   text is the comparable unit (kind: 'text'); the instruction is context only.
+//
 // Returns { units, instructions }
-//   units        Map "section|path" → { section, sectionTitle, path, text,
+//   units        Map "section|path" → { section, sectionTitle, path, text, kind,
 //                                       hasElision, instrNums[] }
-//   instructions [{ num, text, refs[] }]
+//   instructions [{ num, text, refs[], producedUnits }]
 
 function parseAmendmentDoc(paras) {
   const units = new Map();
@@ -1564,28 +1608,61 @@ function parseAmendmentDoc(paras) {
   let stack = [];            // active designator nesting
   let unit = null;
 
+  function store(u) {
+    const key = `${u.section}|${u.path}`;
+    const prev = units.get(key);
+    // Detailed text always outranks a bare instruction for the same key, and
+    // among equals the fullest occurrence wins (a TOC line loses to the real one).
+    if (prev && !(u.kind === 'text' && prev.kind === 'instruction')
+             && !(u.kind === prev.kind && u.text.length > prev.text.length)) return;
+    units.set(key, u);
+  }
+
   function flush() {
     if (!unit) return;
     const text = unit.lines.join('\n').trim();
     // A designator carrying only "* * *" is a path marker, not content.
     if (text) {
-      const key = `${unit.section}|${unit.path}`;
-      const prev = units.get(key);
-      if (!prev || text.length > prev.text.length) units.set(key, { ...unit, text });
+      store({ ...unit, text });
+      if (curInstr) curInstr.producedUnits = true;
     }
     unit = null;
   }
 
   function openUnit(path) {
     flush();
+    const number = section ? section.number : '';
     unit = {
-      section: section ? section.number : '',
+      section: number,
       sectionTitle: section ? section.title : '',
       path,
+      kind: 'text',
       lines: [],
       hasElision: false,
-      instrNums: curInstr ? [curInstr.num] : [],
+      // Only credit the instruction that actually names this section.
+      instrNums: (curInstr && (!curInstr.refs.length || curInstr.refs.includes(number)))
+        ? [curInstr.num] : [],
     };
+  }
+
+  // An instruction that produced no regulation text is itself the amendment.
+  function closeInstruction() {
+    flush();
+    if (!curInstr || curInstr.producedUnits) return;
+    const targets = instructionParaTargets(curInstr.text);
+    for (const ref of curInstr.refs.length ? curInstr.refs : ['']) {
+      for (const path of targets.length ? targets : ['']) {
+        store({
+          section: ref,
+          sectionTitle: '',
+          path,
+          kind: 'instruction',
+          text: curInstr.text,
+          hasElision: false,
+          instrNums: [curInstr.num],
+        });
+      }
+    }
   }
 
   for (const raw of paras) {
@@ -1601,11 +1678,14 @@ function parseAmendmentDoc(paras) {
     // ── numbered instruction ──
     const mInstr = line.match(INSTRUCTION_RE);
     if (mInstr && !DOTTED_HEAD_RE.test(line)) {
-      flush();
-      curInstr = { num: mInstr[1], text: line, refs: instructionSectionRefs(line) };
+      closeInstruction();
+      curInstr = {
+        num: mInstr[1], text: line,
+        refs: instructionSectionRefs(line), producedUnits: false,
+      };
       instructions.push(curInstr);
-      // The instruction names its target section; adopt it so subsections that
-      // follow without a repeated heading still attach to the right section.
+      // The instruction precedes the section it names; adopt it so amendatory
+      // text still attaches correctly if the heading is missing or unparseable.
       if (curInstr.refs.length) section = { number: curInstr.refs[0], title: '' };
       stack = [];
       continue;
@@ -1621,8 +1701,9 @@ function parseAmendmentDoc(paras) {
     }
 
     // ── section heading ──
-    const mSec = line.match(SECTION_HEAD_RE) || line.match(DOTTED_HEAD_RE);
-    if (mSec && plausibleSectionNumber(mSec[1].replace(/\.+$/, ''))) {
+    const mCited = line.match(SECTION_HEAD_RE);
+    const mSec = mCited || line.match(DOTTED_HEAD_RE);
+    if (mSec && plausibleSectionNumber(mSec[1].replace(/\.+$/, ''), Boolean(mCited))) {
       flush();
       section = { number: mSec[1].replace(/\.+$/, ''), title: (mSec[2] || '').trim() };
       stack = [];
@@ -1643,11 +1724,14 @@ function parseAmendmentDoc(paras) {
     // ── continuation of the open unit ──
     if (unit) {
       unit.lines.push(line);
-      if (curInstr && !unit.instrNums.includes(curInstr.num)) unit.instrNums.push(curInstr.num);
+      if (curInstr && !unit.instrNums.includes(curInstr.num)
+          && (!curInstr.refs.length || curInstr.refs.includes(unit.section))) {
+        unit.instrNums.push(curInstr.num);
+      }
     }
     // Text before any section heading (cover page, preamble) is ignored.
   }
-  flush();
+  closeInstruction();
 
   return { units, instructions };
 }
@@ -1733,16 +1817,36 @@ function analyzeDocuments(docs) {
       if (!variants.has(n)) variants.set(n, []);
       variants.get(n).push(e);
     }
+
+    // One document may spell the subsection out while another gives only the
+    // instruction. That is a real difference between the drafts, but the two
+    // are different kinds of prose, so they are never diffed against each other.
+    const kinds = new Set(entries.map(e => e.unit.kind));
+    const formsDiffer = kinds.size > 1;
+
     if (variants.size < 2) { agreeing++; continue; }
 
     // Most divergent pair — used for ranking and as the default redline pair.
+    // Restricted to same-kind pairs so a text-vs-instruction mismatch cannot
+    // masquerade as a total rewrite.
     let worst = null;
     for (let i = 0; i < entries.length; i++) {
       for (let j = i + 1; j < entries.length; j++) {
+        if (entries[i].unit.kind !== entries[j].unit.kind) continue;
         if (normForCompare(entries[i].unit.text) === normForCompare(entries[j].unit.text)) continue;
         const sim = similarity(entries[i].unit.text, entries[j].unit.text);
         if (!worst || sim < worst.sim) worst = { a: i, b: j, sim };
       }
+    }
+
+    // No same-kind pair disagrees — the only difference is how the drafts
+    // express this subsection. Rank it as similar so it does not crowd the top
+    // of the "most divergent" list; the badge explains what it is.
+    const formOnly = !worst;
+    if (formOnly) {
+      const a = entries.findIndex(e => e.unit.kind === 'text');
+      const b = entries.findIndex(e => e.unit.kind === 'instruction');
+      worst = { a: a === -1 ? 0 : a, b: b === -1 ? 1 : b, sim: 1 };
     }
 
     const section = entries[0].unit.section;
@@ -1754,6 +1858,8 @@ function analyzeDocuments(docs) {
       title: entries.find(e => e.unit.sectionTitle)?.unit.sectionTitle || '',
       entries,
       variantCount: variants.size,
+      formsDiffer,
+      formOnly,
       hasElision: entries.some(e => e.unit.hasElision),
       // Instructions are regulation *metadata*, so they are surfaced only for
       // the section this conflict belongs to — per document.
@@ -2068,6 +2174,9 @@ function buildConflictCard(conflict, allDocs) {
     ? `<span class="sec-badge variants">${conflict.variantCount} variants</span>` : '';
   const elisionBadge = conflict.hasElision
     ? `<span class="sec-badge elision" title="Unchanged text elided with * * *">* * *</span>` : '';
+  const formBadge = conflict.formsDiffer
+    ? `<span class="sec-badge forms" title="One document sets out the text, another gives only the amendment instruction">${
+        conflict.formOnly ? 'form differs' : 'mixed form'}</span>` : '';
 
   // Numbered instructions are shown only for the section this conflict is in.
   const instrHtml = conflict.instructions.length ? `
@@ -2086,8 +2195,8 @@ function buildConflictCard(conflict, allDocs) {
       <span class="sec-num">§ ${esc(conflict.section)}</span>
       <span class="sec-path">${esc(conflict.path || 'section body')}</span>
       <span class="sec-title${conflict.title ? '' : ' untitled'}">${esc(conflict.title || '')}</span>
-      ${variantBadge}${elisionBadge}
-      <span class="sec-badge sim">${pct}% alike</span>
+      ${variantBadge}${elisionBadge}${formBadge}
+      <span class="sec-badge sim">${conflict.formOnly ? '—' : pct + '% alike'}</span>
       <span class="sec-docs">${tags}</span>
       <span class="amend-toggle">▼</span>
     </div>
@@ -2107,7 +2216,8 @@ function buildConflictCard(conflict, allDocs) {
   const selB = card.querySelector('.pick-b');
   for (const sel of [selA, selB]) {
     sel.innerHTML = conflict.entries
-      .map((e, i) => `<option value="${i}">${esc(e.doc.tag + ' · ' + trunc(e.doc.name, 40))}</option>`)
+      .map((e, i) => `<option value="${i}">${esc(e.doc.tag + ' · ' + trunc(e.doc.name, 34)
+        + (e.unit.kind === 'instruction' ? ' (instruction)' : ''))}</option>`)
       .join('');
   }
   selA.value = String(conflict.worst.a);
@@ -2129,6 +2239,25 @@ function buildConflictCard(conflict, allDocs) {
       note.className = 'pair-note same';
       note.textContent = 'These two agree';
       area.innerHTML = `<div class="docx-note">✅ ${esc(a.doc.tag)} and ${esc(b.doc.tag)} carry identical text for this subsection — the conflict is with another document.</div>`;
+      return;
+    }
+
+    // Regulation text and an amendment instruction are different kinds of
+    // prose; a word diff between them would be noise, so say so instead.
+    if (a.unit.kind !== b.unit.kind) {
+      const txt = a.unit.kind === 'text' ? a : b;
+      const ins = a.unit.kind === 'text' ? b : a;
+      note.className = 'pair-note';
+      note.textContent = 'different forms';
+      area.innerHTML = `
+        <div class="docx-note">⚠ These two express the subsection differently, so they are shown side by side rather than redlined.
+        <strong>${esc(txt.doc.tag)}</strong> sets out the amendatory text;
+        <strong>${esc(ins.doc.tag)}</strong> gives only the amendment instruction.</div>
+        ${renderDiffRows(
+          [{ type: 'diff', label: '', oldHtml: esc(txt.unit.text), newHtml: esc(ins.unit.text) }],
+          `${txt.doc.tag} — amendatory text`,
+          `${ins.doc.tag} — instruction only`
+        )}`;
       return;
     }
 
