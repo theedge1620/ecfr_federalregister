@@ -158,7 +158,6 @@
   .sec-title.untitled { color: var(--ink-faint); font-style: italic; }
   .sec-badge { font-family: sans-serif; font-size: 0.68rem; font-weight: 600; border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; flex-shrink: 0; }
   .sec-badge.variants { background: var(--warn-bg); color: var(--warn); }
-<<<<<<< HEAD
   .sec-badge.elision { background: var(--omit-bg); color: var(--omit-fg); font-family: var(--mono); letter-spacing: -0.05em; }
   .sec-badge.forms { background: var(--accent-light); color: var(--accent); }
   .sec-badge.sim { background: var(--omit-bg); color: var(--omit-fg); font-family: var(--mono); }
@@ -171,10 +170,6 @@
   .instr-line .doc-tag { width: 1.1rem; height: 1.1rem; font-size: 0.65rem; }
   .instr-num { font-family: var(--mono); font-weight: 700; color: var(--ink); flex-shrink: 0; }
   .instr-text { font-style: italic; }
-=======
-  .sec-badge.titles { background: var(--del-bg); color: var(--del); }
-  .sec-badge.sim { background: var(--omit-bg); color: var(--omit-fg); font-family: var(--mono); }
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
   .sec-docs { display: flex; gap: 0.2rem; flex-shrink: 0; }
   .sec-docs .doc-tag { width: 1.1rem; height: 1.1rem; font-size: 0.65rem; }
   .sec-docs .doc-tag.absent { opacity: 0.22; }
@@ -190,6 +185,46 @@
   .redline-area .diff-col-label.proposed { color: var(--add); }
 
   .docx-note { padding: 0.75rem 1.25rem; font-family: sans-serif; font-size: 0.8rem; color: var(--ink-muted); background: var(--omit-bg); }
+
+  /* ═══ Folder Comparison view ═════════════════════════════════════════════ */
+  #fldResults { display: flex; flex-direction: column; gap: 1rem; }
+  #fldResults:empty { display: none; }
+  .upload-area code, .fld-howto code, .fld-meta code { font-family: var(--mono); font-size: 0.78rem; background: var(--omit-bg); padding: 0.05rem 0.3rem; border-radius: 3px; }
+
+  .fld-howto { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 1.1rem; font-family: sans-serif; font-size: 0.82rem; color: var(--ink-muted); }
+  .fld-howto summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  .fld-howto ol { margin: 0.6rem 0 0 1.2rem; display: flex; flex-direction: column; gap: 0.45rem; line-height: 1.5; }
+  .fld-howto pre { font-family: var(--mono); font-size: 0.78rem; background: var(--ink); color: #e8e8f0; padding: 0.55rem 0.8rem; border-radius: 4px; margin: 0.35rem 0; overflow-x: auto; }
+
+  .fld-meta { display: flex; flex-wrap: wrap; gap: 0.3rem 1.5rem; font-family: sans-serif; font-size: 0.78rem; color: var(--ink-muted); }
+  .fld-meta code { word-break: break-all; }
+
+  .fld-docs { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); font-family: sans-serif; font-size: 0.8rem; }
+  .fld-docs summary { cursor: pointer; padding: 0.65rem 1.1rem; font-weight: 600; color: var(--ink); }
+  .fld-docs summary .warn { color: var(--del); font-weight: 400; margin-left: 0.5rem; }
+  .fld-table-wrap { overflow: auto; max-height: 22rem; border-top: 1px solid var(--border); }
+  .fld-docs table { width: 100%; border-collapse: collapse; }
+  .fld-docs th { text-align: left; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); padding: 0.4rem 0.8rem; background: var(--paper); position: sticky; top: 0; white-space: nowrap; }
+  .fld-docs td { padding: 0.35rem 0.8rem; border-top: 1px solid var(--border); color: var(--ink); vertical-align: top; }
+  .fld-docs td.num { text-align: right; font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; }
+  .fld-docs td.path { min-width: 14rem; overflow-wrap: anywhere; }
+  .fld-docs tr.error td[colspan] { min-width: 16rem; }
+  .fld-docs tr.error td { color: var(--del); background: var(--del-bg); }
+
+  .fld-search { flex: 1 1 14rem; min-width: 10rem; font-family: sans-serif; font-size: 0.8rem; padding: 0.3rem 0.7rem; border: 1.5px solid var(--border); border-radius: 999px; color: var(--ink); background: var(--white); }
+  .fld-select { font-family: sans-serif; font-size: 0.78rem; padding: 0.25rem 0.4rem; border: 1.5px solid var(--border); border-radius: 4px; background: var(--white); color: var(--ink); max-width: 16rem; }
+  .fld-search:focus, .fld-select:focus { outline: none; border-color: var(--accent); }
+
+  .variant-legend { padding: 0.55rem 1.25rem; border-bottom: 1px solid var(--border); font-family: sans-serif; font-size: 0.78rem; display: flex; flex-direction: column; gap: 0.3rem; }
+  .variant-row { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+  .variant-row .doc-tag { width: 1.1rem; height: 1.1rem; font-size: 0.65rem; }
+  .variant-id { font-family: var(--mono); font-weight: 700; color: var(--ink); min-width: 1.8rem; }
+  .variant-kind { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); min-width: 5.8rem; }
+  .variant-names { color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  .sec-more { font-family: sans-serif; font-size: 0.68rem; color: var(--ink-faint); align-self: center; margin-left: 0.15rem; }
+
+  .show-more { align-self: center; font-family: sans-serif; font-size: 0.8rem; padding: 0.45rem 1.1rem; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--accent); cursor: pointer; }
+  .show-more:hover { border-color: var(--accent); }
 
   footer { text-align: center; font-family: sans-serif; font-size: 0.75rem; color: var(--ink-faint); padding: 1.5rem 2rem; border-top: 1px solid var(--border); }
   footer a { color: var(--accent); text-decoration: none; }
@@ -216,6 +251,7 @@
   <nav class="tabs">
     <button class="tab active" data-view="ecfr" type="button">eCFR Analysis</button>
     <button class="tab" data-view="compare" type="button">Document Comparison</button>
+    <button class="tab" data-view="folder" type="button">Folder Comparison</button>
   </nav>
 </header>
 
@@ -247,11 +283,7 @@
       <input type="file" id="cmpFileInput" accept=".docx" multiple />
       <div class="upload-icon">📚</div>
       <h2>Drop two or more .docx files here</h2>
-<<<<<<< HEAD
       <p>Matches subsections within each section · Lists only subsections that conflict between documents</p>
-=======
-      <p>Detects numbered sections in each document · Lists only sections that conflict between documents</p>
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     </div>
 
     <div class="file-chips" id="cmpFileChips"></div>
@@ -267,6 +299,39 @@
     <div id="cmpResults"></div>
   </section>
 
+  <!-- ═══ VIEW 3 — Folder comparison dataset from folder_compare.py ═══════ -->
+  <section class="view" id="view-folder">
+    <div class="upload-area" id="fldUploadArea">
+      <input type="file" id="fldFileInput" accept=".json,application/json" />
+      <div class="upload-icon">🗂️</div>
+      <h2>Drop a folder-comparison dataset here</h2>
+      <p>Load the <code>regdiff-folder.json</code> written by <code>folder_compare.py</code></p>
+    </div>
+
+    <details class="fld-howto" id="fldHowto" open>
+      <summary>How to build the dataset</summary>
+      <ol>
+        <li>Put the <code>.docx</code> amendment documents to compare in one folder.</li>
+        <li>Run the analyzer (it sits next to this page):
+          <pre>python folder_compare.py "C:\path\to\folder"</pre>
+          Add <code>--recursive</code> to include subfolders, or <code>-o</code> to choose where the results go.
+        </li>
+        <li>It writes <code>regdiff-folder.json</code> (load it here), <code>regdiff-folder.csv</code>, and —
+          when <code>openpyxl</code> is installed — <code>regdiff-folder.xlsx</code> with real strikethrough redlines.</li>
+      </ol>
+    </details>
+
+    <div class="status-bar" id="fldStatusBar">
+      <div class="status-icon">⏳</div>
+      <div class="status-text">
+        <strong class="status-title">Reading dataset…</strong>
+        <span class="status-detail"></span>
+      </div>
+    </div>
+
+    <div id="fldResults"></div>
+  </section>
+
 </main>
 
 <footer>
@@ -277,7 +342,6 @@
     Only paragraphs referenced in the proposed rule are shown; <em>* * * * *</em> spans collapse unchanged text.
   </div>
   <div class="footer-note" data-view="compare">
-<<<<<<< HEAD
     Subsections are matched only within the same section — <code>§ 50.55a</code> <code>(b)(2)</code> is compared
     against <code>(b)(2)</code> of <code>§ 50.55a</code> alone, never across sections.
     A <code>* * *</code> marker means the text up to the next listed subsection is unchanged, so it is not compared.
@@ -285,12 +349,14 @@
     section heading, that text is compared and the instruction is shown as context; where the instruction stands alone,
     the instruction itself is compared, against other instructions only.
     Comparison ignores case, whitespace and smart-quote/dash styling; the redline is verbatim.
-=======
-    Sections are matched across documents by their number — <code>3.2.1</code>, <code>§ 50.55a</code>, <code>Section 5</code>.
-    A section is flagged when it appears in two or more documents with differing text.
-    Comparison ignores case, whitespace and smart-quote/dash styling; the redline shows the text verbatim.
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     Files are read entirely in your browser — nothing is uploaded.
+  </div>
+  <div class="footer-note" data-view="folder">
+    <code>folder_compare.py</code> applies the same parsing, section-scoped matching and redline logic as Document
+    Comparison to every <code>.docx</code> in a folder. A subsection is listed when two or more documents carry it with
+    differing text; documents that share identical text are grouped into one variant, and each pair of variants is
+    redlined. Text-vs-instruction differences are shown side by side, never redlined.
+    The dataset is read entirely in your browser — nothing is uploaded.
   </div>
 </footer>
 
@@ -1459,7 +1525,6 @@ async function readDocxParagraphs(file) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-<<<<<<< HEAD
 // Amendment document structure
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -1786,74 +1851,6 @@ function parseAmendmentDoc(paras) {
   closeInstruction();
 
   return { units, instructions };
-=======
-// Section detection — numbered section text
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Recognised heading forms:
-//   § 50.55a Codes and standards.      → 50.55a
-//   §§ 50.55a                          → 50.55a
-//   Section 3.2.1 — Scope / Sec. 5.    → 3.2.1 / 5
-//   3.2.1 Scope   /   3.2.1. Scope     → 3.2.1
-//   1. PURPOSE                         → 1        (heading-like lines only)
-
-const SECTION_RULES = [
-  { re: /^§{1,2}\s*(\d+[A-Za-z]?(?:\.\d+[A-Za-z]*)*)\s*[.:—–-]?\s*(.*)$/ },
-  { re: /^(?:Sections?|Secs?\.)\s+(\d+(?:\.\d+)*[A-Za-z]?)\s*[.:—–-]?\s*(.*)$/i },
-  { re: /^(\d+(?:\.\d+)+[A-Za-z]?)\.?\s+(.*)$/ },
-  { re: /^(\d{1,2})\.\s+(.*)$/, singleLevel: true },
-];
-
-function detectSectionHeading(text) {
-  for (const rule of SECTION_RULES) {
-    const m = text.match(rule.re);
-    if (!m) continue;
-
-    const number = m[1].replace(/\.+$/, '');
-    const title = (m[2] || '').trim();
-
-    // Reject implausible numbering (dates, quantities like "2.5 million").
-    const parts = number.split('.');
-    if (parts.some(seg => Number(seg.replace(/[A-Za-z]/g, '')) > 999)) continue;
-
-    // A bare "1." only counts as a heading when the line reads like one.
-    if (rule.singleLevel) {
-      const words = title ? title.split(/\s+/).length : 0;
-      if (title.length > 90 || words > 14) continue;
-    }
-
-    return { key: number.toUpperCase(), number, title };
-  }
-  return null;
-}
-
-// Group a document's paragraphs into sections keyed by section number.
-// Where a number occurs more than once (a table-of-contents line plus the real
-// section, most often) the longest occurrence wins.
-function buildSections(paras) {
-  const found = [];
-  let cur = null;
-
-  for (const text of paras) {
-    const head = detectSectionHeading(text);
-    if (head) {
-      if (cur) found.push(cur);
-      cur = { key: head.key, number: head.number, title: head.title, paras: [text] };
-    } else if (cur) {
-      cur.paras.push(text);
-    }
-    // Paragraphs before the first heading (cover page, preamble) are ignored.
-  }
-  if (cur) found.push(cur);
-
-  const byKey = new Map();
-  for (const s of found) {
-    s.text = s.paras.join('\n');
-    const prev = byKey.get(s.key);
-    if (!prev || s.text.length > prev.text.length) byKey.set(s.key, s);
-  }
-  return byKey;
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1906,7 +1903,6 @@ function compareSectionNumbers(a, b) {
   return 0;
 }
 
-<<<<<<< HEAD
 // Order units by section, then by subsection path.
 function compareUnits(a, b) {
   return compareSectionNumbers(a.section, b.section) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
@@ -1922,15 +1918,6 @@ function analyzeDocuments(docs) {
     for (const [key, unit] of doc.units) {
       if (!index.has(key)) index.set(key, []);
       index.get(key).push({ doc, unit });
-=======
-// Returns { conflicts[], stats{} } for the currently loaded documents.
-function analyzeDocuments(docs) {
-  const index = new Map(); // section key → [{ doc, sec }]
-  for (const doc of docs) {
-    for (const [key, sec] of doc.sections) {
-      if (!index.has(key)) index.set(key, []);
-      index.get(key).push({ doc, sec });
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     }
   }
 
@@ -1940,7 +1927,6 @@ function analyzeDocuments(docs) {
   for (const [key, entries] of index) {
     if (entries.length < 2) { uniqueToOne++; continue; }
 
-<<<<<<< HEAD
     // Distinct text variants across the documents holding this subsection.
     const variants = new Map(); // normalized text → [entry, …]
     for (const e of entries) {
@@ -1966,28 +1952,10 @@ function analyzeDocuments(docs) {
         if (entries[i].unit.kind !== entries[j].unit.kind) continue;
         if (normForCompare(entries[i].unit.text) === normForCompare(entries[j].unit.text)) continue;
         const sim = similarity(entries[i].unit.text, entries[j].unit.text);
-=======
-    // Distinct text variants across the documents holding this section.
-    const variants = new Map(); // normalized text → [entry, …]
-    for (const e of entries) {
-      const n = normForCompare(e.sec.text);
-      if (!variants.has(n)) variants.set(n, []);
-      variants.get(n).push(e);
-    }
-    if (variants.size < 2) { agreeing++; continue; }
-
-    // Most divergent pair — used for ranking and as the default redline pair.
-    let worst = null;
-    for (let i = 0; i < entries.length; i++) {
-      for (let j = i + 1; j < entries.length; j++) {
-        if (normForCompare(entries[i].sec.text) === normForCompare(entries[j].sec.text)) continue;
-        const sim = similarity(entries[i].sec.text, entries[j].sec.text);
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
         if (!worst || sim < worst.sim) worst = { a: i, b: j, sim };
       }
     }
 
-<<<<<<< HEAD
     // No same-kind pair disagrees — the only difference is how the drafts
     // express this subsection. Rank it as similar so it does not crowd the top
     // of the "most divergent" list; the badge explains what it is.
@@ -2016,36 +1984,19 @@ function analyzeDocuments(docs) {
         doc: e.doc,
         list: (e.doc.instructions || []).filter(ins => ins.refs.includes(section)),
       })).filter(x => x.list.length),
-=======
-    const titles = new Set(entries.map(e => normForCompare(e.sec.title)).filter(Boolean));
-
-    conflicts.push({
-      key,
-      number: entries[0].sec.number,
-      title: entries.find(e => e.sec.title)?.sec.title || '',
-      entries,
-      variantCount: variants.size,
-      titlesDiffer: titles.size > 1,
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       worst: worst || { a: 0, b: 1, sim: 0 },
     });
   }
 
-<<<<<<< HEAD
   const sectionsTouched = new Set(conflicts.map(c => c.section));
 
-=======
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
   return {
     conflicts,
     stats: {
       docs: docs.length,
       common: index.size - uniqueToOne,
       conflicts: conflicts.length,
-<<<<<<< HEAD
       sections: sectionsTouched.size,
-=======
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       agreeing,
       uniqueToOne,
     },
@@ -2082,31 +2033,21 @@ function lcsOps(a, b) {
   return ops;
 }
 
-<<<<<<< HEAD
 // Pair up each run of changes so a rewritten paragraph shows as one two-column
 // row rather than a deletion row followed by an insertion row. The whole
 // contiguous non-equal block is gathered first, because lcsOps may emit its
 // insertions before its deletions depending on how the DP ties break.
-=======
-// Pair up adjacent delete/insert runs so a rewritten paragraph shows as one
-// two-column row rather than a deletion row followed by an insertion row.
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
 function mergeReplacements(ops) {
   const out = [];
   let i = 0;
   while (i < ops.length) {
     if (ops[i].type === 'eq') { out.push(ops[i]); i++; continue; }
     const dels = [], ins = [];
-<<<<<<< HEAD
     while (i < ops.length && ops[i].type !== 'eq') {
       if (ops[i].type === 'del') dels.push(ops[i].a);
       else ins.push(ops[i].b);
       i++;
     }
-=======
-    while (i < ops.length && ops[i].type === 'del') dels.push(ops[i].a), i++;
-    while (i < ops.length && ops[i].type === 'ins') ins.push(ops[i].b), i++;
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     const paired = Math.min(dels.length, ins.length);
     for (let k = 0; k < paired; k++) out.push({ type: 'rep', a: dels[k], b: ins[k] });
     for (let k = paired; k < dels.length; k++) out.push({ type: 'del', a: dels[k] });
@@ -2151,11 +2092,7 @@ function diffParagraphBlocks(aText, bText) {
 const DOC_COLORS = ['#2d6a9f', '#a01a1a', '#1a7a3a', '#7a5a00', '#6a3a9f', '#0f6f77', '#a04a1a', '#4a4a6a'];
 const DOC_TAGS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-<<<<<<< HEAD
 let cmpDocs = [];        // { id, tag, color, name, size, units, instructions, error }
-=======
-let cmpDocs = [];        // { id, tag, color, name, size, sections, error }
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
 let cmpSort = 'divergent';
 let cmpDocFilter = 'all';
 let cmpNextId = 0;
@@ -2185,7 +2122,6 @@ async function addComparisonFiles(fileList) {
     if (cmpDocs.some(d => d.name === file.name && d.size === file.size)) continue;
 
     setStatusIn('cmpStatusBar', '⏳', 'Reading documents…', file.name);
-<<<<<<< HEAD
     const doc = {
       id: cmpNextId++, name: file.name, size: file.size,
       units: new Map(), instructions: [], error: null,
@@ -2194,11 +2130,6 @@ async function addComparisonFiles(fileList) {
       const parsed = parseAmendmentDoc(await readDocxParagraphs(file));
       doc.units = parsed.units;
       doc.instructions = parsed.instructions;
-=======
-    const doc = { id: cmpNextId++, name: file.name, size: file.size, sections: new Map(), error: null };
-    try {
-      doc.sections = buildSections(await readDocxParagraphs(file));
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     } catch (err) {
       doc.error = err.message;
     }
@@ -2223,18 +2154,12 @@ function renderFileChips() {
   for (const doc of cmpDocs) {
     const chip = document.createElement('div');
     chip.className = 'file-chip' + (doc.error ? ' error' : '');
-<<<<<<< HEAD
     const sectionCount = new Set(Array.from(doc.units.values(), u => u.section)).size;
     const meta = doc.error
       ? `<span class="file-chip-meta" style="color:var(--del)">${esc(doc.error)}</span>`
       : `<span class="file-chip-meta">${sectionCount} section${sectionCount !== 1 ? 's' : ''} ·
          ${doc.units.size} subsection${doc.units.size !== 1 ? 's' : ''} ·
          ${doc.instructions.length} instruction${doc.instructions.length !== 1 ? 's' : ''}</span>`;
-=======
-    const meta = doc.error
-      ? `<span class="file-chip-meta" style="color:var(--del)">${esc(doc.error)}</span>`
-      : `<span class="file-chip-meta">${doc.sections.size} section${doc.sections.size !== 1 ? 's' : ''}</span>`;
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     chip.innerHTML = `${docTagHtml(doc)}<span class="file-chip-name">${esc(doc.name)}</span>${meta}
       <button class="file-chip-remove" type="button" title="Remove">✕</button>`;
     chip.querySelector('.file-chip-remove').addEventListener('click', () => removeComparisonDoc(doc.id));
@@ -2272,46 +2197,28 @@ function renderComparison(skipped = 0) {
 
   setStatusIn('cmpStatusBar', conflicts.length ? '⚠️' : '✅',
     conflicts.length
-<<<<<<< HEAD
       ? `${conflicts.length} conflicting subsection${conflicts.length !== 1 ? 's' : ''} found`
       : 'No conflicting subsections found',
     conflicts.length
       ? `In ${stats.sections} section${stats.sections !== 1 ? 's' : ''} across ${stats.docs} documents · click one to open its redline.${skipNote}`
       : `All ${stats.common} shared subsection${stats.common !== 1 ? 's' : ''} match across the documents.${skipNote}`);
-=======
-      ? `${conflicts.length} conflicting section${conflicts.length !== 1 ? 's' : ''} found`
-      : 'No conflicting sections found',
-    conflicts.length
-      ? `Across ${stats.docs} documents · click a section to open its redline.${skipNote}`
-      : `All ${stats.common} shared section${stats.common !== 1 ? 's' : ''} match across the documents.${skipNote}`);
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
 
   // ── summary strip ──
   const sum = document.createElement('div');
   sum.className = 'cmp-summary';
   sum.innerHTML = `
     <div class="cmp-stat"><span class="n">${stats.docs}</span><span class="k">Documents</span></div>
-<<<<<<< HEAD
     <div class="cmp-stat"><span class="n">${stats.common}</span><span class="k">Shared subsections</span></div>
     <div class="cmp-stat"><span class="n${stats.conflicts ? ' flag' : ''}">${stats.conflicts}</span><span class="k">Conflicts</span></div>
     <div class="cmp-stat"><span class="n">${stats.sections}</span><span class="k">Sections affected</span></div>
-=======
-    <div class="cmp-stat"><span class="n">${stats.common}</span><span class="k">Shared sections</span></div>
-    <div class="cmp-stat"><span class="n${stats.conflicts ? ' flag' : ''}">${stats.conflicts}</span><span class="k">Conflicts</span></div>
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     <div class="cmp-stat"><span class="n">${stats.agreeing}</span><span class="k">In agreement</span></div>
     <div class="cmp-stat"><span class="n">${stats.uniqueToOne}</span><span class="k">In one doc only</span></div>`;
   out.appendChild(sum);
 
   if (!conflicts.length) {
     out.innerHTML += stats.common
-<<<<<<< HEAD
       ? `<div class="empty-state"><div class="icon">✅</div>No conflicts detected.<br>Every subsection shared by these documents has matching text.</div>`
       : `<div class="empty-state"><div class="icon">🔍</div>No subsection appears in more than one document.<br>Check that the documents use section headings such as <code>§ 50.55a</code> with lettered or numbered paragraphs.</div>`;
-=======
-      ? `<div class="empty-state"><div class="icon">✅</div>No conflicts detected.<br>Every section number shared by these documents has matching text.</div>`
-      : `<div class="empty-state"><div class="icon">🔍</div>No section number appears in more than one document.<br>Check that the documents use numbered sections such as <code>3.2.1</code> or <code>§ 50.55a</code>.</div>`;
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
     return;
   }
 
@@ -2354,21 +2261,12 @@ function renderComparison(skipped = 0) {
 
   // ── conflict cards ──
   conflicts.sort((a, b) => cmpSort === 'number'
-<<<<<<< HEAD
     ? compareUnits(a, b)
     : (a.worst.sim - b.worst.sim) || compareUnits(a, b));
 
   const hdr = document.createElement('div');
   hdr.className = 'amendments-header';
   hdr.innerHTML = `<h2>Conflicting Subsections</h2><span class="badge">${conflicts.length} found</span>`;
-=======
-    ? compareSectionNumbers(a.number, b.number)
-    : a.worst.sim - b.worst.sim);
-
-  const hdr = document.createElement('div');
-  hdr.className = 'amendments-header';
-  hdr.innerHTML = `<h2>Conflicting Sections</h2><span class="badge">${conflicts.length} found</span>`;
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
   out.appendChild(hdr);
 
   const list = document.createElement('div');
@@ -2391,7 +2289,6 @@ function buildConflictCard(conflict, allDocs) {
 
   const variantBadge = conflict.variantCount > 2
     ? `<span class="sec-badge variants">${conflict.variantCount} variants</span>` : '';
-<<<<<<< HEAD
   const elisionBadge = conflict.hasElision
     ? `<span class="sec-badge elision" title="Unchanged text elided with * * *">* * *</span>` : '';
   const formBadge = conflict.formsDiffer
@@ -2417,25 +2314,11 @@ function buildConflictCard(conflict, allDocs) {
       <span class="sec-title${conflict.title ? '' : ' untitled'}">${esc(conflict.title || '')}</span>
       ${variantBadge}${elisionBadge}${formBadge}
       <span class="sec-badge sim">${conflict.formOnly ? '—' : pct + '% alike'}</span>
-=======
-  const titleBadge = conflict.titlesDiffer
-    ? `<span class="sec-badge titles">heading differs</span>` : '';
-
-  card.innerHTML = `
-    <div class="conflict-card-header">
-      <span class="sec-num">${esc(conflict.number)}</span>
-      <span class="sec-title${conflict.title ? '' : ' untitled'}">${esc(conflict.title || 'untitled section')}</span>
-      ${variantBadge}${titleBadge}
-      <span class="sec-badge sim">${pct}% alike</span>
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       <span class="sec-docs">${tags}</span>
       <span class="amend-toggle">▼</span>
     </div>
     <div class="conflict-body">
-<<<<<<< HEAD
       ${instrHtml}
-=======
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       <div class="pair-picker">
         <span>Redline</span>
         <select class="pick-a"></select>
@@ -2450,12 +2333,8 @@ function buildConflictCard(conflict, allDocs) {
   const selB = card.querySelector('.pick-b');
   for (const sel of [selA, selB]) {
     sel.innerHTML = conflict.entries
-<<<<<<< HEAD
       .map((e, i) => `<option value="${i}">${esc(e.doc.tag + ' · ' + trunc(e.doc.name, 34)
         + (e.unit.kind === 'instruction' ? ' (instruction)' : ''))}</option>`)
-=======
-      .map((e, i) => `<option value="${i}">${esc(e.doc.tag + ' · ' + trunc(e.doc.name, 40))}</option>`)
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       .join('');
   }
   selA.value = String(conflict.worst.a);
@@ -2473,7 +2352,6 @@ function buildConflictCard(conflict, allDocs) {
       area.innerHTML = `<div class="docx-note">Pick two different documents to see a redline.</div>`;
       return;
     }
-<<<<<<< HEAD
     if (normForCompare(a.unit.text) === normForCompare(b.unit.text)) {
       note.className = 'pair-note same';
       note.textContent = 'These two agree';
@@ -2497,17 +2375,10 @@ function buildConflictCard(conflict, allDocs) {
           `${txt.doc.tag} — amendatory text`,
           `${ins.doc.tag} — instruction only`
         )}`;
-=======
-    if (normForCompare(a.sec.text) === normForCompare(b.sec.text)) {
-      note.className = 'pair-note same';
-      note.textContent = 'These two agree';
-      area.innerHTML = `<div class="docx-note">✅ ${esc(a.doc.tag)} and ${esc(b.doc.tag)} carry identical text for this section — the conflict is with another document.</div>`;
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       return;
     }
 
     note.className = 'pair-note';
-<<<<<<< HEAD
     note.textContent = `${Math.round(similarity(a.unit.text, b.unit.text) * 100)}% alike`;
 
     const elided = (a.unit.hasElision || b.unit.hasElision)
@@ -2516,11 +2387,6 @@ function buildConflictCard(conflict, allDocs) {
 
     area.innerHTML = elided + renderDiffRows(
       diffParagraphBlocks(a.unit.text, b.unit.text),
-=======
-    note.textContent = `${Math.round(similarity(a.sec.text, b.sec.text) * 100)}% alike`;
-    area.innerHTML = renderDiffRows(
-      diffParagraphBlocks(a.sec.text, b.sec.text),
->>>>>>> f6408cfdae2a57b74587b6ae582e0d099c0968e9
       `${a.doc.tag} — ${trunc(a.doc.name, 46)}`,
       `${b.doc.tag} — ${trunc(b.doc.name, 46)}`
     );
@@ -2556,12 +2422,409 @@ cua.addEventListener('drop', e => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// VIEW 3 — Folder comparison (dataset produced by folder_compare.py)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// folder_compare.py runs the Document Comparison logic over every .docx in a
+// folder and writes a JSON dataset. This view only displays it. Documents that
+// share identical text are grouped into variants; each same-kind variant pair
+// arrives with a precomputed redline as rows of [op, text] runs:
+//   { t: 'omit', n }                  — n unchanged paragraphs
+//   { t: 'diff', ops: [[op, text]] }  — op "=" unchanged, "-" deleted, "+" inserted
+
+const FLD_SCHEMA = 'regdiff-folder/1';
+const FLD_PAGE = 50;
+
+let fld = null;
+let fldView = null;
+
+function fldResetView() {
+  fldView = { q: '', doc: 'all', type: 'all', sort: 'number', shown: FLD_PAGE };
+}
+
+async function loadFolderDataset(file) {
+  if (!file) return;
+  setStatusIn('fldStatusBar', '⏳', 'Reading dataset…', file.name);
+
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch (e) {
+    setStatusIn('fldStatusBar', '⚠️', 'Not a readable dataset', `${file.name} is not valid JSON.`);
+    return;
+  }
+  if (!data || data.schema !== FLD_SCHEMA || !Array.isArray(data.conflicts) || !Array.isArray(data.documents)) {
+    setStatusIn('fldStatusBar', '⚠️', 'Not a folder-comparison dataset',
+      `${file.name} was not written by folder_compare.py (expected schema "${FLD_SCHEMA}").`);
+    return;
+  }
+
+  for (const d of data.documents) d.color = DOC_COLORS[d.id % DOC_COLORS.length];
+  data.docById = new Map(data.documents.map(d => [d.id, d]));
+  data.fileName = file.name;
+  fld = data;
+  fldResetView();
+  document.getElementById('fldHowto').open = false;
+  renderFolder();
+}
+
+function fldFmtDate(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso || '') : d.toLocaleString();
+}
+
+// Variant label: "V2 — A, C, F" (plus a marker when it is instruction prose).
+function fldVariantLabel(c, vi) {
+  const v = c.variants[vi];
+  const tags = v.docs.map(id => fld.docById.get(id)?.tag ?? '?');
+  const who = tags.length <= 5 ? tags.join(', ') : `${tags.slice(0, 4).join(', ')} +${tags.length - 4}`;
+  return `V${vi + 1} — ${who}${v.kind === 'instruction' ? ' (instruction)' : ''}`;
+}
+
+// Precomputed rows → the { oldHtml, newHtml } rows renderDiffRows() draws.
+// Viewing a pair in the opposite direction swaps the sides: what one variant
+// deleted, the other inserted.
+function fldRowsToDiffRows(rows, reversed) {
+  return rows.map(r => {
+    if (r.t === 'omit') return { type: 'omit', count: r.n };
+    let oldHtml = '', newHtml = '';
+    for (const [raw, text] of r.ops) {
+      const op = !reversed ? raw : raw === '-' ? '+' : raw === '+' ? '-' : raw;
+      if (op === '=') { oldHtml += esc(text); newHtml += esc(text); }
+      else if (op === '-') oldHtml += `<span class="diff-del">${esc(text)}</span>`;
+      else newHtml += `<span class="diff-add">${esc(text)}</span>`;
+    }
+    return { type: 'diff', label: '', oldHtml, newHtml };
+  });
+}
+
+function fldSearchBlob(c) {
+  if (c._blob === undefined) {
+    c._blob = [
+      `§ ${c.section}${c.path}`, `${c.section}${c.path}`, c.title || '',
+      ...c.variants.map(v => v.text), ...c.instructions.map(i => i.text),
+    ].join('\n').toLowerCase();
+  }
+  return c._blob;
+}
+
+function fldMatches(c) {
+  if (fldView.doc !== 'all' && !c.docs.includes(Number(fldView.doc))) return false;
+  const pairKinds = new Set(c.pairs.map(p => c.variants[p.a].kind));
+  switch (fldView.type) {
+    case 'text':        if (!pairKinds.has('text')) return false; break;
+    case 'instruction': if (!pairKinds.has('instruction')) return false; break;
+    case 'form':        if (!c.formsDiffer) return false; break;
+    case 'multi':       if (c.variantCount < 3) return false; break;
+  }
+  return !fldView.q || fldSearchBlob(c).includes(fldView.q);
+}
+
+function renderFolder() {
+  const out = document.getElementById('fldResults');
+  out.innerHTML = '';
+  const s = fld.stats;
+  const pl = (n, w) => `${n} ${w}${n !== 1 ? 's' : ''}`;
+
+  setStatusIn('fldStatusBar', s.conflicts ? '⚠️' : '✅',
+    s.conflicts
+      ? `${pl(s.conflicts, 'conflicting subsection')} in ${pl(s.sectionsAffected, 'section')}`
+      : 'No conflicting subsections',
+    `${s.readable} of ${pl(s.documents, 'document')} readable`
+      + (s.failed ? ` · ${s.failed} could not be read` : '')
+      + ` · generated ${fldFmtDate(fld.generatedAt)}`
+      + (s.readable < 2 ? ' · fewer than two readable documents, so nothing was compared' : ''));
+
+  // ── source ──
+  const meta = document.createElement('div');
+  meta.className = 'fld-meta';
+  meta.innerHTML = `<span>📁 <code>${esc(fld.folder || '')}</code>${fld.recursive ? ' · including subfolders' : ''}</span>
+    <span>Dataset: ${esc(fld.fileName)}</span>`;
+  out.appendChild(meta);
+
+  // ── summary strip ──
+  const sum = document.createElement('div');
+  sum.className = 'cmp-summary';
+  sum.innerHTML = `
+    <div class="cmp-stat"><span class="n">${s.documents}</span><span class="k">Documents</span></div>
+    ${s.failed ? `<div class="cmp-stat"><span class="n flag">${s.failed}</span><span class="k">Unreadable</span></div>` : ''}
+    <div class="cmp-stat"><span class="n">${s.shared}</span><span class="k">Shared subsections</span></div>
+    <div class="cmp-stat"><span class="n${s.conflicts ? ' flag' : ''}">${s.conflicts}</span><span class="k">Conflicts</span></div>
+    <div class="cmp-stat"><span class="n">${s.sectionsAffected}</span><span class="k">Sections affected</span></div>
+    <div class="cmp-stat"><span class="n">${s.agreeing}</span><span class="k">In agreement</span></div>
+    <div class="cmp-stat"><span class="n">${s.formOnly}</span><span class="k">Form differs only</span></div>`;
+  out.appendChild(sum);
+
+  // ── documents ──
+  const docs = document.createElement('details');
+  docs.className = 'fld-docs';
+  docs.open = fld.documents.length <= 8;
+  const num = v => (v === null || v === undefined) ? '' : v;
+  docs.innerHTML = `
+    <summary>Documents (${fld.documents.length})${s.failed ? `<span class="warn">${pl(s.failed, 'file')} could not be read</span>` : ''}</summary>
+    <div class="fld-table-wrap"><table>
+      <thead><tr><th></th><th>File</th><th>Subsections</th><th>Sections</th><th>Instructions</th><th>Instruction-only</th><th>Conflicts</th></tr></thead>
+      <tbody>${fld.documents.map(d => d.error
+        ? `<tr class="error"><td>${docTagHtml(d)}</td><td class="path">${esc(d.relPath || d.name)}</td><td colspan="5">⚠ ${esc(d.error)}</td></tr>`
+        : `<tr><td>${docTagHtml(d)}</td><td class="path">${esc(d.relPath || d.name)}</td>
+             <td class="num">${num(d.units)}</td><td class="num">${num(d.sections)}</td><td class="num">${num(d.instructions)}</td>
+             <td class="num">${num(d.instructionOnly)}</td><td class="num">${num(d.conflicts)}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  out.appendChild(docs);
+
+  if (!s.conflicts) {
+    out.insertAdjacentHTML('beforeend', s.shared
+      ? `<div class="empty-state"><div class="icon">✅</div>No conflicts detected.<br>Every subsection shared by these documents has matching text.</div>`
+      : `<div class="empty-state"><div class="icon">🔍</div>No subsection appears in more than one document.</div>`);
+    return;
+  }
+
+  // ── filters ──
+  const bar = document.createElement('div');
+  bar.className = 'filter-bar';
+  bar.innerHTML = `
+    <input type="search" class="fld-search" placeholder="Search § number, heading or text…" aria-label="Search conflicts">
+    <select class="fld-select" data-f="doc" aria-label="Filter by document">
+      <option value="all">All documents</option>
+      ${fld.documents.filter(d => !d.error && d.conflicts).map(d =>
+        `<option value="${d.id}">${esc(d.tag + ' · ' + trunc(d.name, 32))} (${d.conflicts})</option>`).join('')}
+    </select>
+    <select class="fld-select" data-f="type" aria-label="Filter by conflict type">
+      <option value="all">All conflict types</option>
+      <option value="text">Text vs. text</option>
+      <option value="instruction">Instruction vs. instruction</option>
+      <option value="form">Form differs</option>
+      <option value="multi">3 or more variants</option>
+    </select>
+    <span class="filter-label" style="margin-left:0.5rem">Sort</span>
+    <button class="filter-pill active" data-sort="number" type="button">Section order</button>
+    <button class="filter-pill" data-sort="divergent" type="button">Most divergent</button>
+    <span class="filter-count" id="fldCount"></span>`;
+  out.appendChild(bar);
+
+  let timer = null;
+  bar.querySelector('.fld-search').addEventListener('input', e => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fldView.q = e.target.value.replace(/§/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      fldView.shown = FLD_PAGE;
+      renderFolderList();
+    }, 150);
+  });
+  bar.querySelectorAll('.fld-select').forEach(sel => sel.addEventListener('change', () => {
+    fldView[sel.dataset.f] = sel.value;
+    fldView.shown = FLD_PAGE;
+    renderFolderList();
+  }));
+  bar.querySelectorAll('[data-sort]').forEach(btn => btn.addEventListener('click', () => {
+    fldView.sort = btn.dataset.sort;
+    bar.querySelectorAll('[data-sort]').forEach(b => b.classList.toggle('active', b === btn));
+    renderFolderList();
+  }));
+
+  const hdr = document.createElement('div');
+  hdr.className = 'amendments-header';
+  hdr.innerHTML = `<h2>Conflicting Subsections</h2><span class="badge">${s.conflicts} found</span>`;
+  out.appendChild(hdr);
+
+  const list = document.createElement('div');
+  list.className = 'amendment-cards';
+  list.id = 'fldList';
+  out.appendChild(list);
+
+  const more = document.createElement('button');
+  more.className = 'show-more';
+  more.id = 'fldMore';
+  more.type = 'button';
+  more.addEventListener('click', () => { fldView.shown += FLD_PAGE; renderFolderList(); });
+  out.appendChild(more);
+
+  renderFolderList();
+}
+
+function renderFolderList() {
+  let items = fld.conflicts.filter(fldMatches);
+  if (fldView.sort === 'divergent') {
+    // Form-only conflicts carry no similarity; rank them with the near-identical.
+    items = items.slice().sort((a, b) =>
+      ((a.minSimilarity ?? 1) - (b.minSimilarity ?? 1)) || (a.id - b.id));
+  }
+
+  const filtered = items.length !== fld.conflicts.length;
+  document.getElementById('fldCount').textContent = filtered
+    ? `${items.length} of ${fld.conflicts.length} shown` : '';
+
+  const list = document.getElementById('fldList');
+  list.innerHTML = '';
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🔍</div>No conflicts match these filters.</div>`;
+  }
+  for (const c of items.slice(0, fldView.shown)) list.appendChild(buildFolderCard(c));
+
+  const more = document.getElementById('fldMore');
+  const remaining = items.length - fldView.shown;
+  more.hidden = remaining <= 0;
+  more.textContent = `Show ${Math.min(FLD_PAGE, remaining)} more · ${remaining} remaining`;
+}
+
+function buildFolderCard(c) {
+  const card = document.createElement('div');
+  card.className = 'conflict-card';
+
+  // Presence strip: every document when the folder is small, else only holders.
+  const present = new Set(c.docs);
+  let tags;
+  if (fld.documents.length <= 12) {
+    tags = fld.documents.map(d => docTagHtml(d, present.has(d.id) ? '' : 'absent')).join('');
+  } else {
+    const ids = [...present];
+    tags = ids.slice(0, 8).map(id => docTagHtml(fld.docById.get(id))).join('')
+      + (ids.length > 8 ? `<span class="sec-more">+${ids.length - 8}</span>` : '');
+  }
+
+  const badges =
+    (c.variantCount > 2 ? `<span class="sec-badge variants">${c.variantCount} variants</span>` : '')
+    + (c.hasElision ? `<span class="sec-badge elision" title="Unchanged text elided with * * *">* * *</span>` : '')
+    + (c.formsDiffer ? `<span class="sec-badge forms" title="One document sets out the text, another gives only the amendment instruction">${c.formOnly ? 'form differs' : 'mixed form'}</span>` : '');
+  const sim = c.formOnly ? '—' : `${Math.round(c.minSimilarity * 100)}% alike`;
+
+  const instrHtml = c.instructions.length ? `
+    <div class="instr-block">
+      <div class="instr-head">Amendment instructions affecting § ${esc(c.section)}</div>
+      ${c.instructions.map(i => `
+        <div class="instr-line">
+          ${docTagHtml(fld.docById.get(i.doc))}
+          <span class="instr-num">${esc(i.num)}.</span>
+          <span class="instr-text">${esc(i.text.replace(INSTRUCTION_RE, '$2'))}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  const legend = `
+    <div class="variant-legend">
+      ${c.variants.map((v, vi) => `
+        <div class="variant-row">
+          <span class="variant-id">V${vi + 1}</span>
+          <span class="variant-kind">${v.kind === 'instruction' ? 'instruction' : 'amendatory text'}</span>
+          <span class="sec-docs">${v.docs.slice(0, 10).map(id => docTagHtml(fld.docById.get(id))).join('')}</span>
+          <span class="variant-names">${esc(v.docs.map(id => fld.docById.get(id)?.name ?? '').join(' · '))}</span>
+        </div>`).join('')}
+    </div>`;
+
+  card.innerHTML = `
+    <div class="conflict-card-header">
+      <span class="sec-num">§ ${esc(c.section)}</span>
+      <span class="sec-path">${esc(c.path || 'section body')}</span>
+      <span class="sec-title${c.title ? '' : ' untitled'}">${esc(c.title || '')}</span>
+      ${badges}
+      <span class="sec-badge sim">${sim}</span>
+      <span class="sec-docs">${tags}</span>
+      <span class="amend-toggle">▼</span>
+    </div>
+    <div class="conflict-body">
+      ${instrHtml}
+      ${legend}
+      <div class="pair-picker">
+        <span>Redline</span>
+        <select class="pick-a" aria-label="Left variant"></select>
+        <span class="vs">vs</span>
+        <select class="pick-b" aria-label="Right variant"></select>
+        <span class="pair-note"></span>
+      </div>
+      <div class="redline-area"></div>
+    </div>`;
+
+  const selA = card.querySelector('.pick-a');
+  const selB = card.querySelector('.pick-b');
+  const options = c.variants.map((_, vi) => `<option value="${vi}">${esc(fldVariantLabel(c, vi))}</option>`).join('');
+  selA.innerHTML = options;
+  selB.innerHTML = options;
+  selA.value = String(c.defaultPair[0]);
+  selB.value = String(c.defaultPair[1]);
+
+  const area = card.querySelector('.redline-area');
+  const note = card.querySelector('.pair-note');
+
+  function draw() {
+    const ia = Number(selA.value), ib = Number(selB.value);
+    const va = c.variants[ia], vb = c.variants[ib];
+    note.className = 'pair-note';
+    note.textContent = '';
+
+    if (ia === ib) {
+      area.innerHTML = `<div class="docx-note">Pick two different variants to see a redline.</div>`;
+      return;
+    }
+
+    if (va.kind !== vb.kind) {
+      const txt = va.kind === 'text' ? ia : ib;
+      const ins = va.kind === 'text' ? ib : ia;
+      note.textContent = 'different forms';
+      area.innerHTML = `
+        <div class="docx-note">⚠ These variants express the subsection differently, so they are shown side by side rather than redlined.
+        <strong>V${txt + 1}</strong> sets out the amendatory text; <strong>V${ins + 1}</strong> gives only the amendment instruction.</div>
+        ${renderDiffRows(
+          [{ type: 'diff', label: '', oldHtml: esc(c.variants[txt].text), newHtml: esc(c.variants[ins].text) }],
+          `${fldVariantLabel(c, txt)} · amendatory text`,
+          `${fldVariantLabel(c, ins)}`)}`;
+      return;
+    }
+
+    const pair = c.pairs.find(p => (p.a === ia && p.b === ib) || (p.a === ib && p.b === ia));
+    if (!pair) {
+      area.innerHTML = `<div class="ecfr-error">⚠ The dataset has no redline for this pair.</div>`;
+      return;
+    }
+    note.textContent = `${Math.round(pair.similarity * 100)}% alike`;
+
+    const notes =
+      ((va.hasElision || vb.hasElision)
+        ? `<div class="docx-note">⋯ This subsection carries a <code>* * *</code> elision — text not reprinted is unchanged and is not compared.</div>` : '')
+      + (pair.rows.some(r => r.coarse)
+        ? `<div class="docx-note">This passage is too long for a word-level redline, so it is marked as a whole.</div>` : '');
+
+    area.innerHTML = notes + renderDiffRows(
+      fldRowsToDiffRows(pair.rows, pair.a !== ia),
+      fldVariantLabel(c, ia),
+      fldVariantLabel(c, ib));
+  }
+
+  selA.addEventListener('change', draw);
+  selB.addEventListener('change', draw);
+  card.querySelector('.pair-picker').addEventListener('click', e => e.stopPropagation());
+
+  let drawn = false;
+  card.querySelector('.conflict-card-header').addEventListener('click', () => {
+    const wasOpen = card.classList.contains('open');
+    card.classList.toggle('open');
+    if (!wasOpen && !drawn) { drawn = true; draw(); }
+  });
+
+  return card;
+}
+
+// ── folder view wiring ──
+
+document.getElementById('fldFileInput').addEventListener('change', e => {
+  loadFolderDataset(e.target.files[0]);
+  e.target.value = '';
+});
+
+const fua = document.getElementById('fldUploadArea');
+fua.addEventListener('dragover', e => { e.preventDefault(); fua.classList.add('drag-over'); });
+fua.addEventListener('dragleave', () => fua.classList.remove('drag-over'));
+fua.addEventListener('drop', e => {
+  e.preventDefault(); fua.classList.remove('drag-over');
+  loadFolderDataset(e.dataTransfer.files[0]);
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 // Top-level navigation
 // ═════════════════════════════════════════════════════════════════════════════
 
 const TAGLINES = {
   ecfr: 'Federal Register proposed rules vs. current eCFR text',
   compare: 'Cross-document section conflicts across multiple .docx files',
+  folder: 'Conflicts across a whole folder of .docx files, from folder_compare.py',
 };
 
 function switchView(view) {
